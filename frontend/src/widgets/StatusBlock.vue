@@ -6,9 +6,9 @@ import { getProgressStrokeColor } from "@/tools/progressColor";
 import type { LayoutCard } from "@/types";
 import {
   AppstoreOutlined,
-  FlagOutlined,
+  CloudServerOutlined,
   HddOutlined,
-  NodeExpandOutlined
+  SafetyCertificateOutlined
 } from "@ant-design/icons-vue";
 import type { Component } from "vue";
 import { computed } from "vue";
@@ -19,269 +19,350 @@ const props = defineProps<{
 
 const { state } = useOverviewInfo();
 const { getMetaValue } = useLayoutCardTools(props.card);
-
 const type = getMetaValue<string>("type");
 
-interface BaseStatusItem {
+type Tone = "ok" | "warn" | "danger" | "info" | "muted";
+
+interface KpiView {
   type: string;
   title: string;
   icon: Component;
+  primary: string;
+  secondary?: string;
+  hint: string;
+  percent?: number;
+  tone: Tone;
+  bars?: Array<{
+    label: string;
+    percent: number;
+    detail?: string;
+  }>;
 }
 
-interface NodeStatusItem extends BaseStatusItem {
-  type: "node";
-  available: number;
-  total: number;
-}
-
-interface InstanceStatusItem extends BaseStatusItem {
-  type: "instance";
-  running: number;
-  total: number;
-}
-
-interface UsersStatusItem extends BaseStatusItem {
-  type: "users";
-  loginFailed: number;
-  logined: number;
-}
-
-interface SystemStatusItem extends BaseStatusItem {
-  type: "system";
-  cpuPercent: number;
-  memUsedPercent: number;
-  memUsedGB: number;
-  memTotalGB: number;
-}
-
-type StatusItem = NodeStatusItem | InstanceStatusItem | UsersStatusItem | SystemStatusItem;
-
-const computedStatusList = computed<StatusItem[]>(() => {
-  if (!state.value) return [];
-
+const kpi = computed<KpiView | null>(() => {
+  if (!state.value) return null;
   const s = state.value;
-  const memUsedPercent = Math.round(100 - Number(s.mem));
-  const memTotalGB = Number((s.system.totalmem / 1024 / 1024 / 1024).toFixed(1));
-  const memUsedGB = Number((memTotalGB - s.system.freemem / 1024 / 1024 / 1024).toFixed(1));
 
-  return [
-    {
+  if (type === "node") {
+    const available = s.remoteCount?.available ?? 0;
+    const total = s.remoteCount?.total ?? 0;
+    const offline = Math.max(total - available, 0);
+    const tone: Tone = total === 0 ? "muted" : offline > 0 ? "danger" : "ok";
+    return {
       type: "node",
       title: t("TXT_CODE_4b7eba50"),
-      icon: NodeExpandOutlined,
-      available: s?.remoteCount?.available ?? 0,
-      total: s?.remoteCount?.total ?? 0
-    },
-    {
+      icon: CloudServerOutlined,
+      primary: String(available),
+      secondary: `/ ${total}`,
+      hint: total === 0 ? t("TXT_CODE_OV_KPI_NODE_EMPTY") : offline > 0 ? t("TXT_CODE_OV_KPI_NODE_OFFLINE", { n: offline }) : t("TXT_CODE_OV_KPI_NODE_OK"),
+      percent: total > 0 ? Math.round((available / total) * 100) : 0,
+      tone
+    };
+  }
+
+  if (type === "instance") {
+    const running = s.runningInstance ?? 0;
+    const total = s.totalInstance ?? 0;
+    const stopped = Math.max(total - running, 0);
+    const percent = total > 0 ? Math.round((running / total) * 100) : 0;
+    const tone: Tone = total === 0 ? "muted" : running === 0 ? "warn" : "ok";
+    return {
       type: "instance",
       title: t("TXT_CODE_8201d2c6"),
       icon: AppstoreOutlined,
-      running: s.runningInstance,
-      total: s.totalInstance
-    },
-    {
+      primary: String(running),
+      secondary: `/ ${total}`,
+      hint:
+        total === 0
+          ? t("TXT_CODE_OV_KPI_INSTANCE_EMPTY")
+          : t("TXT_CODE_OV_KPI_INSTANCE_HINT", { running, stopped }),
+      percent,
+      tone
+    };
+  }
+
+  if (type === "users") {
+    const failed = s.record?.loginFailed ?? 0;
+    const logined = s.record?.logined ?? 0;
+    const tone: Tone = failed > 0 ? "warn" : "info";
+    return {
       type: "users",
       title: t("TXT_CODE_871fb0d6"),
-      icon: FlagOutlined,
-      loginFailed: s.record.loginFailed,
-      logined: s.record.logined
-    },
-    {
+      icon: SafetyCertificateOutlined,
+      primary: String(failed),
+      secondary: `/ ${logined}`,
+      hint: t("TXT_CODE_OV_KPI_LOGIN_HINT"),
+      tone
+    };
+  }
+
+  if (type === "system") {
+    const cpu = Math.min(100, Math.max(0, Number(s.cpu || 0)));
+    // s.mem is free percent in current compute path; convert to used percent.
+    const freePercent = Math.min(100, Math.max(0, Number(s.mem || 0)));
+    const memUsedPercent = Math.min(100, Math.max(0, 100 - freePercent));
+    const memTotalGB = Number((s.system.totalmem / 1024 / 1024 / 1024).toFixed(1));
+    const memUsedGB = Number((memTotalGB * memUsedPercent) / 100).toFixed(1);
+    const worst = Math.max(cpu, memUsedPercent);
+    const tone: Tone = worst >= 85 ? "danger" : worst >= 65 ? "warn" : "ok";
+    return {
       type: "system",
       title: t("TXT_CODE_f4244bbf"),
       icon: HddOutlined,
-      cpuPercent: s.cpu,
-      memUsedPercent,
-      memUsedGB,
-      memTotalGB
-    }
-  ];
-});
-
-const realStatus = computed(() => computedStatusList.value.find((v) => v.type === type));
-
-const systemBars = computed(() => {
-  const s = realStatus.value;
-  if (!s || s.type !== "system") return [];
-  return [
-    { label: "CPU", percent: s.cpuPercent },
-    {
-      label: t("TXT_CODE_593ee330"),
-      percent: s.memUsedPercent,
-      detail: `${s.memUsedGB} GB / ${s.memTotalGB} GB`
-    }
-  ];
-});
-
-const breakInNeed = (a: number, b: number = 0) => {
-  const bigger = a > b ? a : b;
-  if (bigger >= 10000)
-    return {
-      display: "block"
+      primary: `${cpu}%`,
+      secondary: `CPU`,
+      hint: t("TXT_CODE_OV_KPI_SYSTEM_HINT", { mem: `${memUsedGB}/${memTotalGB}G` }),
+      tone,
+      bars: [
+        { label: "CPU", percent: cpu },
+        {
+          label: t("TXT_CODE_593ee330"),
+          percent: memUsedPercent,
+          detail: `${memUsedGB} / ${memTotalGB} GB`
+        }
+      ]
     };
-  else return "";
-};
+  }
+
+  return null;
+});
 </script>
 
 <template>
   <CardPanel class="StatusBlock" style="height: 100%">
     <template #title>{{ card.title }}</template>
     <template #body>
-      <div class="status-header">
-        <a-typography-text class="status-header__title color-info">
-          {{ realStatus?.title }}
-        </a-typography-text>
+      <div v-if="!kpi" class="kpi kpi--loading">
+        <a-skeleton active :paragraph="{ rows: 2 }" :title="false" />
       </div>
 
-      <!-- Nodes: progress bar + two tags -->
-      <template v-if="realStatus?.type === 'node'">
-        <div class="status-text">
-          <span class="status-text__highlight" :style="breakInNeed(realStatus.total)">
-            {{ realStatus.available }}
-          </span>
-          / {{ realStatus.total }}
+      <div v-else class="kpi" :class="`kpi--${kpi.tone}`">
+        <div class="kpi__top">
+          <div class="kpi__meta">
+            <span class="kpi__badge">
+              <component :is="kpi.icon" />
+            </span>
+            <div>
+              <div class="kpi__title">{{ kpi.title }}</div>
+              <div class="kpi__hint">{{ kpi.hint }}</div>
+            </div>
+          </div>
+          <div class="kpi__tone-dot" />
         </div>
 
-        <component :is="realStatus?.icon" class="status-card-icon" />
-      </template>
-
-      <!-- Instances: progress bar + two tags -->
-      <template v-else-if="realStatus?.type === 'instance'">
-        <div class="status-text mb-10">
-          <span class="status-text__highlight" :style="breakInNeed(realStatus.total)">{{
-            realStatus.running
-          }}</span>
-          / {{ realStatus.total }}
+        <div v-if="kpi.type !== 'system'" class="kpi__value-row">
+          <span class="kpi__primary">{{ kpi.primary }}</span>
+          <span v-if="kpi.secondary" class="kpi__secondary">{{ kpi.secondary }}</span>
         </div>
 
-        <a-progress
-          :percent="
-            realStatus.total ? Math.round((realStatus.running / realStatus.total) * 100) : 0
-          "
-          :stroke-color="
-            getProgressStrokeColor(
-              realStatus.total ? Math.round((realStatus.running / realStatus.total) * 100) : 0
-            )
-          "
-          :show-info="false"
-          :stroke-width="12"
-          style="max-width: 60%"
-        />
-
-        <component :is="realStatus?.icon" class="status-card-icon" />
-      </template>
-
-      <!-- User login: two tags -->
-      <template v-else-if="realStatus?.type === 'users'">
-        <div class="status-text">
-          <span
-            class="status-text__highlight"
-            :style="breakInNeed(realStatus.loginFailed, realStatus.logined)"
-          >
-            {{ realStatus.loginFailed }}
-          </span>
-          / {{ realStatus.logined }}
-        </div>
-
-        <component :is="realStatus?.icon" class="status-card-icon" />
-      </template>
-
-      <!-- System CPU / RAM -->
-      <template v-else-if="realStatus?.type === 'system'">
-        <div class="status-bars">
-          <div v-for="bar in systemBars" :key="bar.label" class="status-bar-item">
-            <div class="status-bar-label">
+        <div v-if="kpi.type === 'system' && kpi.bars" class="kpi__bars">
+          <div v-for="bar in kpi.bars" :key="bar.label" class="kpi__bar">
+            <div class="kpi__bar-head">
               <span>{{ bar.label }}</span>
-              <div class="status-bar-value">
-                <span class="status-bar-value__percent">{{ bar.percent }}%</span>
-                <span v-if="bar.detail" class="status-bar-value__detail">{{ bar.detail }}</span>
-              </div>
+              <span class="kpi__bar-val">
+                {{ bar.percent }}%
+                <span v-if="bar.detail" class="kpi__bar-detail">{{ bar.detail }}</span>
+              </span>
             </div>
             <a-progress
               :percent="bar.percent"
               :stroke-color="getProgressStrokeColor(bar.percent)"
-              :stroke-width="12"
+              :stroke-width="10"
               :show-info="false"
             />
           </div>
         </div>
-      </template>
+
+        <a-progress
+          v-else-if="typeof kpi.percent === 'number'"
+          class="kpi__progress"
+          :percent="kpi.percent"
+          :stroke-color="getProgressStrokeColor(kpi.percent)"
+          :stroke-width="8"
+          :show-info="false"
+        />
+      </div>
     </template>
   </CardPanel>
 </template>
 
 <style lang="scss" scoped>
-.status-text {
-  font-size: 2rem;
-  font-weight: 500;
-  letter-spacing: -0.1em;
-  color: #606060;
-  font-family: auto;
-
-  &__highlight {
-    font-size: 3rem;
-    font-weight: 600;
-    color: var(--color-primary);
-  }
+.StatusBlock {
+  position: relative;
+  overflow: hidden;
 }
 
-.status-card-icon {
-  position: absolute;
-  right: 12px;
-  font-size: 4rem;
-  bottom: 10px;
-  opacity: 0.1;
-  transition: transform 0.25s ease-out;
-  svg {
-    fill: #fff;
-  }
-}
-
-.status-header {
+.kpi {
+  height: 100%;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 118px;
 
-  &__icon {
-    font-size: 18px;
+  &--loading {
+    justify-content: center;
+  }
+
+  &__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__badge {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
     color: var(--color-primary);
   }
 
   &__title {
-    font-size: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-gray-10);
+    line-height: 1.2;
   }
-}
 
-.status-bars {
-  display: flex;
-  gap: 20px;
-  margin-top: 4px;
-  flex-direction: column;
+  &__hint {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--color-gray-7);
+    line-height: 1.35;
+  }
 
-  .status-bar-label {
+  &__tone-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 4px;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  &__value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__primary {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--color-gray-12);
+  }
+
+  &__secondary {
+    font-size: 16px;
+    color: var(--color-gray-7);
+    font-weight: 500;
+  }
+
+  &__progress {
+    margin-top: 2px;
+    max-width: 88%;
+  }
+
+  &__bars {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__bar-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--color-gray-8);
   }
 
-  .status-bar-value {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+  &__bar-val {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-gray-10);
+  }
 
-    &__percent {
-      font-weight: 500;
+  &__bar-detail {
+    margin-left: 8px;
+    font-weight: 400;
+    color: var(--color-gray-7);
+  }
+
+  &--ok {
+    .kpi__badge {
+      background: color-mix(in srgb, var(--color-success) 16%, transparent);
+      color: var(--color-success);
     }
-
-    &__detail {
-      font-size: 12px;
-      color: #909090;
+    .kpi__tone-dot {
+      background: var(--color-success);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent);
+    }
+    .kpi__primary {
+      color: var(--color-success);
     }
   }
-}
 
-.StatusBlock {
-  position: relative;
+  &--warn {
+    .kpi__badge {
+      background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+      color: var(--color-warning);
+    }
+    .kpi__tone-dot {
+      background: var(--color-warning);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 18%, transparent);
+    }
+    .kpi__primary {
+      color: var(--color-warning);
+    }
+  }
+
+  &--danger {
+    .kpi__badge {
+      background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+      color: var(--color-danger);
+    }
+    .kpi__tone-dot {
+      background: var(--color-danger);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 18%, transparent);
+    }
+    .kpi__primary {
+      color: var(--color-danger);
+    }
+  }
+
+  &--info {
+    .kpi__primary {
+      color: var(--color-primary);
+    }
+  }
+
+  &--muted {
+    .kpi__primary {
+      color: var(--color-gray-8);
+    }
+    .kpi__tone-dot {
+      background: var(--color-gray-6);
+      box-shadow: none;
+    }
+  }
 }
 </style>

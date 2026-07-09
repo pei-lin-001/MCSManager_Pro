@@ -1,58 +1,18 @@
 <script setup lang="ts">
-import DataStatistic from "@/components/DataStatistic.vue";
 import { useOverviewInfo } from "@/hooks/useOverviewInfo";
 import { t } from "@/lang/i18n";
-import { arrayFilter } from "@/tools/array";
+import { getProgressStrokeColor } from "@/tools/progressColor";
 import type { LayoutCard } from "@/types";
 import {
   ApiOutlined,
   AppstoreOutlined,
-  ClockCircleOutlined,
   CloudServerOutlined,
-  CodeOutlined,
-  DatabaseOutlined,
   DesktopOutlined,
-  GlobalOutlined,
-  LaptopOutlined,
-  LockOutlined,
+  InfoCircleOutlined,
   SafetyCertificateOutlined,
-  ThunderboltOutlined,
-  UserOutlined
+  ThunderboltOutlined
 } from "@ant-design/icons-vue";
-import type { Component } from "vue";
 import { computed } from "vue";
-
-interface OverviewTextItem {
-  type: "text";
-  title: string;
-  value: string;
-  icon?: Component;
-  condition?: () => boolean;
-}
-
-interface OverviewMemoryItem {
-  type: "memory";
-  title: string;
-  used: number;
-  total: number;
-  condition?: () => boolean;
-}
-
-interface OverviewCpuItem {
-  type: "cpu";
-  title: string;
-  percent: number;
-  condition?: () => boolean;
-}
-
-interface OverviewLoadAvgItem {
-  type: "loadavg";
-  title: string;
-  values: [number, number, number];
-  condition?: () => boolean;
-}
-
-type OverviewItem = OverviewTextItem | OverviewMemoryItem | OverviewCpuItem | OverviewLoadAvgItem;
 
 defineProps<{
   card: LayoutCard;
@@ -60,118 +20,70 @@ defineProps<{
 
 const { state } = useOverviewInfo();
 
-const overviewList = computed(() => {
-  if (!state.value) {
-    return [
-      {
-        type: "text" as const,
-        title: t("TXT_CODE_b197be11"),
-        value: ""
-      }
-    ];
-  }
+const summary = computed(() => {
+  if (!state.value) return null;
+  const {
+    system,
+    version,
+    specifiedDaemonVersion,
+    process,
+    remoteCount,
+    runningInstance,
+    totalInstance,
+    cpu,
+    mem
+  } = state.value;
 
-  const { system, version, record, specifiedDaemonVersion, process } = state.value;
-  const free = Number((system.freemem / 1024 / 1024 / 1024).toFixed(1));
+  const freePercent = Math.min(100, Math.max(0, Number(mem || 0)));
+  const memUsedPercent = Math.min(100, Math.max(0, 100 - freePercent));
+  const cpuPercent = Math.min(100, Math.max(0, Number(cpu || 0)));
   const totalMem = Number((system.totalmem / 1024 / 1024 / 1024).toFixed(1));
-  const usedMem = Number(Number(totalMem) - Number(free));
-  const cpuPercent = Math.min(100, Math.round((state.value as { cpu?: number }).cpu ?? 0));
+  const usedMem = Number(((totalMem * memUsedPercent) / 100).toFixed(1));
+  const processMem = Number((process.memory / 1024 / 1024).toFixed(1));
+  const nodeOnline = remoteCount?.available ?? 0;
+  const nodeTotal = remoteCount?.total ?? 0;
+  const healthTone =
+    nodeTotal > 0 && nodeOnline < nodeTotal
+      ? "danger"
+      : Math.max(cpuPercent, memUsedPercent) >= 85
+        ? "danger"
+        : Math.max(cpuPercent, memUsedPercent) >= 65
+          ? "warn"
+          : totalInstance > 0 && runningInstance === 0
+            ? "warn"
+            : "ok";
 
-  const items: (OverviewItem & { condition?: () => boolean })[] = [
-    {
-      type: "text",
-      title: t("TXT_CODE_413b9c01"),
-      value: system.node,
-      icon: CodeOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_af21e6b"),
-      value: version,
-      icon: AppstoreOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_a0e70887"),
-      value: specifiedDaemonVersion,
-      icon: ApiOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_fdb6c369"),
-      value: system.user.username,
-      icon: UserOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_f54e6d1f"),
-      value: new Date(system.time).toLocaleString(),
-      icon: ClockCircleOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_4ab6a0b5"),
-      value: new Date().toLocaleString(),
-      icon: GlobalOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_856bd2f3"),
-      value: String(record.banips),
-      icon: SafetyCertificateOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_da8f97a7"),
-      value: String(record.illegalAccess),
-      icon: LockOutlined
-    },
-    {
-      type: "memory",
-      title: t("TXT_CODE_593ee330"),
-      used: usedMem,
-      total: totalMem
-    },
-    {
-      type: "cpu",
-      title: "CPU",
-      percent: cpuPercent
-    },
-    {
-      type: "loadavg",
-      title: t("TXT_CODE_190ecd56"),
-      values: system.loadavg.map((v) => Number(Number(v).toFixed(2))) as [number, number, number],
-      condition: () => !system.type.toLowerCase().includes("windows")
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_77d038f7"),
-      value: `${(process.memory / 1024 / 1024).toFixed(1)}MB`,
-      icon: DesktopOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_4df7e9bd"),
-      value: system.hostname,
-      icon: CloudServerOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_b4d8588"),
-      value: `${
-        system.version.length > 16 ? system.version.slice(0, 16) + "..." : system.version
-      } ${system.release}`,
-      icon: CodeOutlined
-    },
-    {
-      type: "text",
-      title: t("TXT_CODE_edf84830"),
-      value: `${system.type} ${system.platform}`,
-      icon: LaptopOutlined
-    }
-  ];
-
-  return arrayFilter(items);
+  return {
+    healthTone,
+    healthText:
+      healthTone === "danger"
+        ? t("TXT_CODE_OV_HEALTH_BAD")
+        : healthTone === "warn"
+          ? t("TXT_CODE_OV_HEALTH_WARN")
+          : t("TXT_CODE_OV_HEALTH_OK"),
+    cpuPercent,
+    memUsedPercent,
+    usedMem,
+    totalMem,
+    processMem,
+    version,
+    specifiedDaemonVersion,
+    hostname: system.hostname || "--",
+    platform: `${system.type} ${system.platform}`,
+    node: system.node,
+    osVersion:
+      system.version.length > 28
+        ? `${system.version.slice(0, 28)}...`
+        : `${system.version} ${system.release}`,
+    loadavg: system.loadavg?.map((v) => Number(Number(v).toFixed(2))) || [],
+    isWindows: system.type.toLowerCase().includes("windows"),
+    runningInstance,
+    totalInstance,
+    nodeOnline,
+    nodeTotal,
+    banips: state.value.record?.banips ?? 0,
+    illegalAccess: state.value.record?.illegalAccess ?? 0
+  };
 });
 </script>
 
@@ -180,65 +92,159 @@ const overviewList = computed(() => {
     <CardPanel style="height: 100%">
       <template #title>{{ card.title }}</template>
       <template #body>
-        <a-row :gutter="[24, 24]">
-          <a-col
-            v-for="(item, index) in overviewList"
-            :key="`${item.title}-${index}`"
-            :span="12"
-            :md="12"
-            :lg="6"
-          >
-            <!-- Memory: progress bar + percent and value -->
-            <div v-if="item.type === 'memory'" class="overview-item overview-item--progress">
-              <div class="overview-item__title">
-                <DatabaseOutlined class="overview-item__icon" />
-                <span style="opacity: 0.7">{{ item.title }}</span>
+        <div v-if="!summary" class="overview-loading">
+          <a-skeleton active :paragraph="{ rows: 4 }" />
+        </div>
+
+        <div v-else class="overview-grid">
+          <div class="health-banner" :class="`health-banner--${summary.healthTone}`">
+            <div class="health-banner__left">
+              <span class="health-banner__dot" />
+              <div>
+                <div class="health-banner__title">{{ summary.healthText }}</div>
+                <div class="health-banner__sub">
+                  {{
+                    t("TXT_CODE_OV_HEALTH_SUB", {
+                      nodeOnline: summary.nodeOnline,
+                      nodeTotal: summary.nodeTotal,
+                      running: summary.runningInstance,
+                      total: summary.totalInstance
+                    })
+                  }}
+                </div>
               </div>
-              <div class="overview-item__value">
-                <span class="overview-item__percent">
-                  {{ item.total > 0 ? Math.round((item.used / item.total) * 100) : 0 }}%
-                </span>
-                <span class="overview-item__unit">
-                  {{ item.used.toFixed(1) }} GB / {{ item.total.toFixed(1) }} GB
-                </span>
+            </div>
+            <div class="health-banner__meta">
+              <span>{{ summary.hostname }}</span>
+              <span class="sep">·</span>
+              <span>{{ summary.platform }}</span>
+            </div>
+          </div>
+
+          <div class="resource-panel">
+            <div class="resource-card">
+              <div class="resource-card__head">
+                <ThunderboltOutlined />
+                <span>CPU</span>
+              </div>
+              <div
+                class="resource-card__value"
+                :style="{ color: getProgressStrokeColor(summary.cpuPercent)['0%'] }"
+              >
+                {{ summary.cpuPercent }}%
+              </div>
+              <a-progress
+                :percent="summary.cpuPercent"
+                :stroke-color="getProgressStrokeColor(summary.cpuPercent)"
+                :stroke-width="12"
+                :show-info="false"
+              />
+            </div>
+
+            <div class="resource-card">
+              <div class="resource-card__head">
+                <DesktopOutlined />
+                <span>{{ t("TXT_CODE_593ee330") }}</span>
+              </div>
+              <div
+                class="resource-card__value"
+                :style="{ color: getProgressStrokeColor(summary.memUsedPercent)['0%'] }"
+              >
+                {{ summary.memUsedPercent }}%
+              </div>
+              <div class="resource-card__detail">
+                {{ summary.usedMem }} GB / {{ summary.totalMem }} GB
+              </div>
+              <a-progress
+                :percent="summary.memUsedPercent"
+                :stroke-color="getProgressStrokeColor(summary.memUsedPercent)"
+                :stroke-width="12"
+                :show-info="false"
+              />
+            </div>
+
+            <div
+              v-if="!summary.isWindows && summary.loadavg.length >= 3"
+              class="resource-card resource-card--load"
+            >
+              <div class="resource-card__head">
+                <InfoCircleOutlined />
+                <span>{{ t("TXT_CODE_190ecd56") }}</span>
+              </div>
+              <div class="load-tags">
+                <a-tag color="green">1m {{ summary.loadavg[0]?.toFixed(2) }}</a-tag>
+                <a-tag color="gold">5m {{ summary.loadavg[1]?.toFixed(2) }}</a-tag>
+                <a-tag color="volcano">15m {{ summary.loadavg[2]?.toFixed(2) }}</a-tag>
+              </div>
+              <div class="resource-card__detail">
+                {{ t("TXT_CODE_OV_PANEL_MEM", { mem: `${summary.processMem}MB` }) }}
               </div>
             </div>
 
-            <!-- CPU: progress bar + percent and value -->
-            <div v-else-if="item.type === 'cpu'" class="overview-item overview-item--progress">
-              <div class="overview-item__title">
-                <ThunderboltOutlined class="overview-item__icon" />
-                <span style="opacity: 0.7">{{ item.title }}</span>
+            <div v-else class="resource-card resource-card--load">
+              <div class="resource-card__head">
+                <DesktopOutlined />
+                <span>{{ t("TXT_CODE_77d038f7") }}</span>
               </div>
+              <div class="resource-card__value resource-card__value--sm">
+                {{ summary.processMem }}MB
+              </div>
+              <div class="resource-card__detail">{{ t("TXT_CODE_OV_PANEL_PROCESS_HINT") }}</div>
+            </div>
+          </div>
 
-              <div class="overview-item__value">
-                <span class="overview-item__percent">{{ item.percent }}%</span>
+          <div class="info-panel">
+            <div class="info-item">
+              <AppstoreOutlined />
+              <div>
+                <div class="info-item__label">{{ t("TXT_CODE_af21e6b") }}</div>
+                <div class="info-item__value">{{ summary.version }}</div>
               </div>
             </div>
-
-            <!-- Load Average: three tags with separator -->
-            <div v-else-if="item.type === 'loadavg'" class="overview-item overview-item--loadavg">
-              <div class="overview-item__title">
-                <ThunderboltOutlined class="overview-item__icon" />
-                <span style="opacity: 0.7">{{ item.title }}</span>
-              </div>
-              <div class="loadavg-tags">
-                <template v-for="(v, i) in item.values" :key="i">
-                  <a-tag
-                    :color="i === 0 ? 'green' : i === 1 ? 'gold' : 'volcano'"
-                    class="loadavg-tag"
-                  >
-                    {{ v.toFixed(2) }}
-                  </a-tag>
-                  <span v-if="i < item.values.length - 1" class="loadavg-sep">·</span>
-                </template>
+            <div class="info-item">
+              <ApiOutlined />
+              <div>
+                <div class="info-item__label">{{ t("TXT_CODE_a0e70887") }}</div>
+                <div class="info-item__value">{{ summary.specifiedDaemonVersion }}</div>
               </div>
             </div>
-
-            <!-- Other: icon + text -->
-            <DataStatistic v-else :title="item.title" :value="item.value" :icon="item.icon" />
-          </a-col>
-        </a-row>
+            <div class="info-item">
+              <CloudServerOutlined />
+              <div>
+                <div class="info-item__label">{{ t("TXT_CODE_4df7e9bd") }}</div>
+                <div class="info-item__value">{{ summary.hostname }}</div>
+              </div>
+            </div>
+            <div class="info-item">
+              <DesktopOutlined />
+              <div>
+                <div class="info-item__label">Node.js</div>
+                <div class="info-item__value">{{ summary.node }}</div>
+              </div>
+            </div>
+            <div class="info-item info-item--wide">
+              <InfoCircleOutlined />
+              <div>
+                <div class="info-item__label">{{ t("TXT_CODE_b4d8588") }}</div>
+                <div class="info-item__value">{{ summary.osVersion }}</div>
+              </div>
+            </div>
+            <div class="info-item info-item--soft">
+              <SafetyCertificateOutlined />
+              <div>
+                <div class="info-item__label">{{ t("TXT_CODE_OV_SOFT_SECURITY") }}</div>
+                <div class="info-item__value">
+                  {{
+                    t("TXT_CODE_OV_SOFT_SECURITY_VALUE", {
+                      ban: summary.banips,
+                      illegal: summary.illegalAccess
+                    })
+                  }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
     </CardPanel>
   </div>
@@ -249,70 +255,196 @@ const overviewList = computed(() => {
   height: 100%;
 }
 
-.overview-item {
+.overview-loading {
+  padding: 8px 0;
+}
+
+.overview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.health-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-gray-4);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
+    flex: 0 0 auto;
+  }
+
   &__title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--color-gray-12);
+  }
+
+  &__sub {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--color-gray-7);
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: var(--color-gray-7);
+    white-space: nowrap;
+    .sep {
+      margin: 0 6px;
+      opacity: 0.6;
+    }
+  }
+
+  &--ok {
+    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+    border-color: color-mix(in srgb, var(--color-success) 28%, transparent);
+    .health-banner__dot {
+      background: var(--color-success);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 20%, transparent);
+    }
+  }
+
+  &--warn {
+    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+    .health-banner__dot {
+      background: var(--color-warning);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 20%, transparent);
+    }
+  }
+
+  &--danger {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
+    .health-banner__dot {
+      background: var(--color-danger);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 20%, transparent);
+    }
+  }
+}
+
+.resource-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.resource-card {
+  border: 1px solid var(--color-gray-4);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-gray-2) 70%, transparent);
+
+  &__head {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--color-gary-4);
-    font-size: var(--font-body);
+    color: var(--color-gray-8);
+    font-size: 13px;
     margin-bottom: 8px;
-
-    .overview-item__icon {
-      font-size: 16px;
-      color: var(--color-primary);
-    }
   }
 
   &__value {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 8px;
-    margin-top: 8px;
-    color: var(--color-gary-6);
-    font-size: var(--font-h5);
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 8px;
 
-    .overview-item__percent {
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .overview-item__unit {
-      opacity: 0.9;
+    &--sm {
+      font-size: 24px;
     }
   }
 
-  &--progress {
-    .ant-progress {
-      margin-bottom: 0;
-    }
+  &__detail {
+    margin: 2px 0 8px;
+    font-size: 12px;
+    color: var(--color-gray-7);
+    font-variant-numeric: tabular-nums;
+  }
+}
 
-    :deep(.ant-progress-outer),
-    :deep(.ant-progress-inner) {
-      border-radius: 8px;
-    }
+.load-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.info-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.info-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-gray-4);
+  background: transparent;
+  min-width: 0;
+
+  > .anticon {
+    margin-top: 2px;
+    color: var(--color-primary);
   }
 
-  &--loadavg {
-    .loadavg-tags {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      margin-top: 4px;
+  &__label {
+    font-size: 12px;
+    color: var(--color-gray-7);
+    margin-bottom: 2px;
+  }
 
-      .loadavg-tag {
-        margin: 0;
-        font-variant-numeric: tabular-nums;
-      }
+  &__value {
+    font-size: 13px;
+    color: var(--color-gray-11);
+    font-weight: 600;
+    word-break: break-word;
+  }
 
-      .loadavg-sep {
-        color: var(--color-gary-4);
-        font-size: 12px;
-        margin: 0 2px;
-      }
-    }
+  &--wide {
+    grid-column: span 2;
+  }
+
+  &--soft {
+    opacity: 0.92;
+  }
+}
+
+@media (max-width: 992px) {
+  .resource-panel,
+  .info-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .info-item--wide {
+    grid-column: span 1;
+  }
+
+  .health-banner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

@@ -2,7 +2,6 @@
 import CardPanel from "@/components/CardPanel.vue";
 import { t } from "@/lang/i18n";
 import type { LayoutCard } from "@/types";
-
 import { useOperationLog } from "@/hooks/useOperationLog";
 import dayjs from "dayjs";
 import { onMounted } from "vue";
@@ -19,68 +18,112 @@ onMounted(() => {
 </script>
 
 <template>
-  <card-panel>
-    <template #title>
-      {{ card.title }}
-    </template>
+  <card-panel class="OperationLogCard">
+    <template #title>{{ card.title }}</template>
     <template #body>
-      <div class="time-line full-card-body-container scrollbar-hidden">
-        <div v-if="formattedLogs.length === 0" class="empty-state">
-          <div class="empty-text">{{ t("TXT_CODE_54469e02") }}</div>
-          <div class="empty-description">{{ t("TXT_CODE_73102f2b") }}</div>
-        </div>
-        <a-timeline v-else>
-          <a-timeline-item v-for="(item, index) in formattedLogs" :key="index" :color="item.color">
-            <div class="log-item">
-              <div class="log-content">{{ item.text }}</div>
-              <div class="log-time">
-                {{ dayjs(Number(item.operation_time)).format("YYYY-MM-DD HH:mm:ss") }}
-              </div>
+      <div v-if="formattedLogs.length" class="log-list">
+        <div
+          v-for="item in formattedLogs"
+          :key="item.operation_id || `${item.operation_time}-${item.text}`"
+          class="log-item"
+          :class="`log-item--${item.operation_level || 'info'}`"
+        >
+          <div class="log-item__rail" />
+          <div class="log-item__body">
+            <div class="log-content">{{ item.text }}</div>
+            <div class="log-meta">
+              <a-tag :color="item.color || 'blue'">
+                {{ item.operation_level || "info" }}
+              </a-tag>
+              <span class="log-time">
+                {{
+                  item.operation_time
+                    ? dayjs(Number(item.operation_time)).format("MM-DD HH:mm:ss")
+                    : "--"
+                }}
+              </span>
             </div>
-          </a-timeline-item>
-        </a-timeline>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-state">
+        <div class="empty-text">{{ t("TXT_CODE_OV_LOG_EMPTY") }}</div>
+        <div class="empty-description">{{ t("TXT_CODE_OV_LOG_EMPTY_HINT") }}</div>
       </div>
     </template>
   </card-panel>
 </template>
 
 <style lang="scss" scoped>
-.time-line {
-  // fix the top content of the component is blocked
-  padding-top: 10px;
+.OperationLogCard {
+  height: 100%;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 100%;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .log-item {
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--color-gray-2);
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-gray-2) 80%, transparent);
   border: 1px solid var(--color-gray-4);
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease, background 0.15s ease;
 
   &:hover {
+    border-color: var(--color-gray-5);
     background: var(--color-gray-3);
-    border: 1px solid var(--color-gray-5);
   }
 
-  &:last-child {
-    margin-bottom: 0;
+  &__rail {
+    width: 3px;
+    border-radius: 999px;
+    background: var(--color-primary);
+    flex: 0 0 auto;
+  }
+
+  &__body {
+    min-width: 0;
+    flex: 1;
+  }
+
+  &--info .log-item__rail {
+    background: var(--color-primary);
+  }
+  &--warning .log-item__rail {
+    background: var(--color-warning);
+  }
+  &--error .log-item__rail {
+    background: var(--color-danger);
   }
 }
 
 .log-content {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-gray-10);
-  margin-bottom: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-gray-11);
   word-break: break-word;
+}
+
+.log-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .log-time {
   font-size: 12px;
   color: var(--color-gray-7);
-  font-family: "Consolas", "Monaco", monospace;
-  opacity: 0.8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .empty-state {
@@ -88,20 +131,20 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 36px 16px;
   text-align: center;
-  min-height: 120px;
+  min-height: 140px;
 }
 
 .empty-text {
-  font-size: 16px;
-  color: var(--color-gray-8);
-  margin-bottom: 8px;
-  font-weight: 500;
+  font-size: 15px;
+  color: var(--color-gray-9);
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
 .empty-description {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-gray-7);
   line-height: 1.4;
 }
