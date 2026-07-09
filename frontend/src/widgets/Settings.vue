@@ -536,12 +536,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div>
+  <div class="settings-root">
     <CardPanel v-if="isReady && formData" class="CardWrapper" style="height: 100%" :padding="false">
       <template #body>
         <LeftMenusPanel ref="leftMenusPanelRef" :menus="menus">
           <template #baseInfo>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_5206cf41") }}
               </a-typography-title>
@@ -641,7 +641,7 @@ onUnmounted(() => {
           </template>
 
           <template #ui>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_1c18acc0") }}
               </a-typography-title>
@@ -802,7 +802,7 @@ onUnmounted(() => {
           </template>
 
           <template #security>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_9c3ca8f") }}
               </a-typography-title>
@@ -1038,7 +1038,7 @@ onUnmounted(() => {
           </template>
 
           <template #sso>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_SSO_TAB_TITLE") }}
               </a-typography-title>
@@ -1269,7 +1269,7 @@ onUnmounted(() => {
           </template>
 
           <template #ai>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_AI_SETTINGS_TAB") }}
               </a-typography-title>
@@ -1458,15 +1458,15 @@ onUnmounted(() => {
           </template>
 
           <template #pro>
-            <IframeBox :src="getProPanelUrl('/status')" :height="card.height" />
+            <IframeBox :src="getProPanelUrl('/status')" height="100%" />
           </template>
 
           <template #redeem>
-            <IframeBox :src="getProPanelUrl('/')" :height="card.height" />
+            <IframeBox :src="getProPanelUrl('/')" height="100%" />
           </template>
 
           <template #about>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_3b4b656d") }}
               </a-typography-title>
@@ -1510,7 +1510,7 @@ onUnmounted(() => {
           </template>
 
           <template #sponsor>
-            <div class="content-box" :style="{ maxHeight: card.height }">
+            <div class="content-box">
               <a-typography-title :level="4" class="mb-24">
                 {{ t("TXT_CODE_46cb40d5") }}
               </a-typography-title>
@@ -1540,8 +1540,36 @@ div {
   }
 }
 
+.settings-root {
+  height: 100%;
+}
+
 .content-box {
   padding: 16px;
+  height: 100%;
+  max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.CardWrapper {
+  height: 100%;
+}
+
+:deep(.menu-body) {
+  height: 100%;
+  display: flex;
+}
+
+:deep(.left-menu) {
+  float: none;
+  flex: 0 0 240px;
+}
+
+:deep(.right-content) {
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 </style>

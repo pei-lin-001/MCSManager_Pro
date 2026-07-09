@@ -36,6 +36,19 @@ const showCardOperator = (card: ILayoutCard) => {
     card.type != PLACE_HOLDER_CARD && containerState.isDesignMode && targetId.value === card.id
   );
 };
+
+const getSingleCardStyle = (card: ILayoutCard) => {
+  // Fixed-height single cards (settings) should fit remaining viewport instead of
+  // forcing page-level scrollbars. AUTO cards keep natural height.
+  if (!card.height || card.height === "unset") {
+    return { minHeight: card.height };
+  }
+  return {
+    height: "calc(100svh - 140px)",
+    maxHeight: "calc(100svh - 140px)",
+    minHeight: 0
+  };
+};
 </script>
 
 <template>
@@ -92,9 +105,10 @@ const showCardOperator = (card: ILayoutCard) => {
 
     <div
       v-if="currentLayoutConfig.length <= 1 && currentLayoutConfig.length != 0"
-      :class="{ 'main-single-card': !isPhone }"
+      class="main-single-card"
+      :class="{ 'main-single-card--phone': isPhone }"
     >
-      <a-row :gutter="[0, 0]" style="width: 100%">
+      <a-row :gutter="[0, 0]" justify="center" style="width: 100%">
         <a-col
           :span="24"
           :md="24"
@@ -105,7 +119,7 @@ const showCardOperator = (card: ILayoutCard) => {
           <LayoutCardComponent
             :card="currentLayoutConfig[0]"
             :data-id="currentLayoutConfig[0].id"
-            :style="{ minHeight: currentLayoutConfig[0].height }"
+            :style="getSingleCardStyle(currentLayoutConfig[0])"
           />
         </a-col>
       </a-row>
@@ -134,9 +148,14 @@ const showCardOperator = (card: ILayoutCard) => {
   position: relative;
 }
 .main-single-card {
-  // Keep horizontal centering via column span, but stick content to the top.
   width: 100%;
   margin-top: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.main-single-card--phone {
+  display: block;
 }
 .main-layout-container {
   position: relative;
