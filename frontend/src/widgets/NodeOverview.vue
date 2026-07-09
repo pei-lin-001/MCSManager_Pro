@@ -19,13 +19,14 @@ const columns = [
     title: t("TXT_CODE_OV_NODE_COL_NODE"),
     dataIndex: "node",
     key: "node",
-    width: 220
+    // Let the first column flex so the whole table can fit without horizontal scroll.
+    ellipsis: true
   },
-  { title: "CPU", dataIndex: "cpu", key: "cpu", width: 150 },
-  { title: t("TXT_CODE_593ee330"), dataIndex: "mem", key: "mem", width: 170 },
-  { title: t("TXT_CODE_eaed6901"), dataIndex: "instances", key: "instances", width: 150 },
-  { title: t("TXT_CODE_3f99f17f"), dataIndex: "version", key: "version", width: 120 },
-  { title: t("TXT_CODE_f80e0786"), dataIndex: "status", key: "status", width: 100 }
+  { title: "CPU", dataIndex: "cpu", key: "cpu", width: 120 },
+  { title: t("TXT_CODE_593ee330"), dataIndex: "mem", key: "mem", width: 130 },
+  { title: t("TXT_CODE_eaed6901"), dataIndex: "instances", key: "instances", width: 110 },
+  { title: t("TXT_CODE_3f99f17f"), dataIndex: "version", key: "version", width: 100 },
+  { title: t("TXT_CODE_f80e0786"), dataIndex: "status", key: "status", width: 88 }
 ];
 
 const dataSource = computed(() => {
@@ -84,11 +85,11 @@ const paginationConfig = computed(() => {
     <template #body>
       <div class="NodeOverview__wrap">
         <a-table
-          :scroll="{ x: 'max-content' }"
           :columns="columns"
           :data-source="sortedData"
           :pagination="paginationConfig"
           size="small"
+          table-layout="fixed"
           :row-class-name="(record: { available: boolean }) => (record.available ? '' : 'row-offline')"
         >
           <template #bodyCell="{ column, record }">
@@ -189,7 +190,8 @@ const paginationConfig = computed(() => {
 }
 
 .NodeOverview__wrap {
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   height: 100%;
   min-height: 0;
   padding: 0 1px;
@@ -199,6 +201,7 @@ const paginationConfig = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .node-dot {
@@ -217,11 +220,19 @@ const paginationConfig = computed(() => {
   }
 }
 
+.node-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .node-name {
   font-weight: 600;
   color: var(--color-gray-11);
   line-height: 1.2;
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .node-addr {
@@ -229,10 +240,13 @@ const paginationConfig = computed(() => {
   font-size: 11px;
   color: var(--color-gray-7);
   font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .metric-cell {
-  min-width: 100px;
+  min-width: 0;
 
   &__top {
     display: flex;
@@ -241,6 +255,7 @@ const paginationConfig = computed(() => {
     margin-bottom: 2px;
     font-variant-numeric: tabular-nums;
     color: var(--color-gray-10);
+    white-space: nowrap;
   }
 }
 

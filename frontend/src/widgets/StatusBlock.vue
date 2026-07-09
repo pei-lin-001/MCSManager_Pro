@@ -186,7 +186,11 @@ const kpi = computed<KpiView | null>(() => {
 <style lang="scss" scoped>
 .StatusBlock {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+
+  :deep(.card-panel-content) {
+    overflow: visible;
+  }
 }
 
 .kpi {
@@ -196,6 +200,8 @@ const kpi = computed<KpiView | null>(() => {
   justify-content: space-between;
   gap: 8px;
   min-height: 0;
+  // Keep glow/halo of the right status dot inside the card.
+  padding-right: 4px;
 
   &--loading {
     justify-content: center;
@@ -206,6 +212,7 @@ const kpi = computed<KpiView | null>(() => {
     align-items: center;
     gap: 8px;
     min-width: 0;
+    padding-right: 2px;
   }
 
   &__badge {
@@ -233,10 +240,11 @@ const kpi = computed<KpiView | null>(() => {
   }
 
   &__tone-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex: 0 0 auto;
+    margin-right: 2px;
     background: var(--color-primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
   }
