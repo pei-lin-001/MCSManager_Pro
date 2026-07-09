@@ -92,9 +92,9 @@ const showCardOperator = (card: ILayoutCard) => {
 
     <div
       v-if="currentLayoutConfig.length <= 1 && currentLayoutConfig.length != 0"
-      :class="{ 'main-flex-center': !isPhone }"
+      :class="{ 'main-single-card': !isPhone }"
     >
-      <a-row :gutter="[0, 0]" :align="'center' as any" style="width: 100%">
+      <a-row :gutter="[0, 0]" style="width: 100%">
         <a-col
           :span="24"
           :md="24"
@@ -133,11 +133,10 @@ const showCardOperator = (card: ILayoutCard) => {
 .layout-card-col {
   position: relative;
 }
-.main-flex-center {
-  margin-top: 10vh;
-  height: 100%;
+.main-single-card {
+  // Keep horizontal centering via column span, but stick content to the top.
   width: 100%;
-  text-align: center;
+  margin-top: 0;
 }
 .main-layout-container {
   position: relative;

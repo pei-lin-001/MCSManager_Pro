@@ -84,6 +84,7 @@ const skeletonConfigs = [
     margin: 0 auto;
     height: 100%;
     position: relative;
+    .main-single-card,
     .main-flex-center {
       margin-top: 0 !important;
       position: absolute;
