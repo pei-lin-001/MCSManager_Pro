@@ -170,6 +170,15 @@ const originRouterConfig: RouterConfig[] = [
     ]
   },
   {
+    path: "/mods",
+    name: t("TXT_CODE_MOD_BROWSER_TITLE"),
+    component: LayoutContainer,
+    meta: {
+      mainMenu: true,
+      permission: ROLE.USER
+    }
+  },
+  {
     path: "/market",
     name: t("TXT_CODE_27594db8"),
     component: LayoutContainer,

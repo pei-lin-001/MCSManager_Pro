@@ -19,6 +19,7 @@ import InstanceChart from "@/widgets/InstanceChart.vue";
 import InstanceList from "@/widgets/InstanceList.vue";
 import LoginCard from "@/widgets/LoginCard.vue";
 import MarketEditor from "@/widgets/market/editor.vue";
+import ModBrowser from "@/widgets/mod/ModBrowser.vue";
 import Market from "@/widgets/market/index.vue";
 import NodeItem from "@/widgets/node/NodeItem.vue";
 import NodeList from "@/widgets/NodeList.vue";
@@ -96,6 +97,7 @@ export const LAYOUT_CARD_TYPES: { [key: string]: any } = {
   MusicCard,
   ShelvesCard,
   OperationLogCard,
+  ModBrowser,
   Market,
   MarketEditor
 };
@@ -463,6 +465,17 @@ export function getLayoutCardPool() {
       description: t("TXT_CODE_9e8c176e"),
       height: LayoutCardHeight.MEDIUM,
       category: NEW_CARD_TYPE.DATA
+    },
+    {
+      id: getRandomId(),
+      permission: ROLE.USER,
+      type: "ModBrowser",
+      title: t("TXT_CODE_MOD_BROWSER_TITLE"),
+      meta: {},
+      width: 12,
+      description: t("TXT_CODE_MOD_BROWSER_DESC"),
+      height: LayoutCardHeight.AUTO,
+      category: NEW_CARD_TYPE.INSTANCE
     },
     {
       id: getRandomId(),

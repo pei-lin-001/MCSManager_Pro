@@ -188,6 +188,20 @@ function getDefaultFrontendLayoutConfig(): IPageLayoutConfig[] {
       ]
     },
     {
+      page: "/mods",
+      items: [
+        {
+          id: getRandomId(),
+          meta: {},
+          type: "ModBrowser",
+          title: t("TXT_CODE_MOD_BROWSER_TITLE"),
+          width: 12,
+          height: LayoutCardHeight.AUTO,
+          disableDelete: true
+        }
+      ]
+    },
+    {
       page: "/market/editor",
       items: [
         {

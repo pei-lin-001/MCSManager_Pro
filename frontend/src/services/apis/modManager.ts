@@ -120,6 +120,7 @@ export const downloadModApi = useDefineApi<
       fileName: string;
       projectType?: string;
       fallbackUrl?: string;
+      extraInfo?: Record<string, unknown>;
     };
   },
   boolean
