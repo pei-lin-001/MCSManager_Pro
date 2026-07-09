@@ -22,6 +22,7 @@ import SystemRemoteService from "./app/service/remote_service";
 import SystemUser from "./app/service/user_service";
 import versionAdapter from "./app/service/version_adapter";
 import { initSystemConfig, systemConfig } from "./app/setting";
+import { initAiConfig } from "./app/service/ai_config_service";
 import { checkBusinessMode, getVersion, initVersionManager } from "./app/version";
 
 function hasParams(name: string) {
@@ -96,6 +97,7 @@ process.stdin.on("data", (v) => {
 async function main() {
   // load global configuration file
   initSystemConfig();
+  initAiConfig();
 
   if (systemConfig && systemConfig?.redisUrl?.length != 0) {
     await RedisStorage.initialize(systemConfig.redisUrl);

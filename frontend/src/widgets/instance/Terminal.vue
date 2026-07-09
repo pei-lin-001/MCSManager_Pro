@@ -33,13 +33,15 @@ import {
   MoneyCollectOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
-  RedoOutlined
+  RedoOutlined,
+  RobotOutlined
 } from "@ant-design/icons-vue";
 import { Modal } from "ant-design-vue";
-import { computed, h, onUnmounted } from "vue";
+import { computed, h, onUnmounted, ref } from "vue";
 import { GLOBAL_INSTANCE_NAME } from "../../config/const";
 import { useTerminal, type UseTerminalHook } from "../../hooks/useTerminal";
 import { arrayFilter } from "../../tools/array";
+import AiAssistantDrawer from "./dialogs/AiAssistantDrawer.vue";
 
 const props = defineProps<{
   card: LayoutCard;
@@ -65,6 +67,7 @@ const {
 
 const instanceId = getMetaOrRouteValue("instanceId");
 const daemonId = getMetaOrRouteValue("daemonId");
+const aiDrawerOpen = ref(false);
 const viewType = getMetaOrRouteValue("viewType", false);
 const innerTerminalType = computed(() => props.card.width === 12 && viewType === "inner");
 const instanceTypeText = computed(
@@ -255,6 +258,11 @@ const getInstanceName = computed(() => {
   }
 });
 
+const openAiAssistant = () => {
+  if (!instanceId || !daemonId) return;
+  aiDrawerOpen.value = true;
+};
+
 onUnmounted(() => {
   if (checkRunningTimer) clearTimeout(checkRunningTimer);
 });
@@ -336,6 +344,10 @@ onUnmounted(() => {
                 </a-button>
               </a-popconfirm>
             </template>
+            <a-button class="ml-8" type="primary" ghost @click="openAiAssistant">
+              <RobotOutlined />
+              {{ t("TXT_CODE_AI_ASSISTANT_TITLE") }}
+            </a-button>
           </div>
 
           <a-dropdown v-else>
@@ -348,6 +360,10 @@ onUnmounted(() => {
                 >
                   <component :is="item.icon" />
                   {{ item.title }}
+                </a-menu-item>
+                <a-menu-item key="ai-assistant" @click="openAiAssistant">
+                  <RobotOutlined />
+                  {{ t("TXT_CODE_AI_ASSISTANT_TITLE") }}
                 </a-menu-item>
               </a-menu>
             </template>
@@ -402,6 +418,13 @@ onUnmounted(() => {
       >
         <IconBtn :icon="item.icon" :title="item.title" @click="item.click"></IconBtn>
       </span>
+      <span class="mr-2">
+        <IconBtn
+          :icon="RobotOutlined"
+          :title="t('TXT_CODE_AI_ASSISTANT_TITLE')"
+          @click="openAiAssistant"
+        />
+      </span>
       <a-dropdown>
         <template #overlay>
           <a-menu>
@@ -429,6 +452,14 @@ onUnmounted(() => {
       />
     </template>
   </CardPanel>
+
+  <AiAssistantDrawer
+    v-if="instanceId && daemonId"
+    v-model:open="aiDrawerOpen"
+    :instance-id="instanceId"
+    :daemon-id="daemonId"
+    :instance-name="getInstanceName"
+  />
 </template>
 
 <style lang="scss" scoped>

@@ -7,6 +7,11 @@ import { useUploadFileDialog } from "@/components/fc";
 import { router } from "@/config/router";
 import { SUPPORTED_LANGS, isCN, t } from "@/lang/i18n";
 import { setSettingInfo, settingInfo } from "@/services/apis";
+import {
+  aiConfigApi,
+  updateAiConfigApi,
+  type AiPublicConfig
+} from "@/services/apis/ai";
 import { useAppConfigStore } from "@/stores/useAppConfigStore";
 import { useLayoutConfigStore } from "@/stores/useLayoutConfig";
 import { useLayoutContainerStore } from "@/stores/useLayoutContainerStore";
@@ -26,7 +31,8 @@ import {
   PicLeftOutlined,
   PlusOutlined,
   ProjectOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  RobotOutlined
 } from "@ant-design/icons-vue";
 import { Modal, message, notification } from "ant-design-vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
@@ -37,6 +43,8 @@ defineProps<{
 
 const { execute, isReady } = settingInfo();
 const { execute: submitExecute, isLoading: submitIsLoading } = setSettingInfo();
+const { execute: loadAiConfigExecute, isLoading: aiConfigLoading } = aiConfigApi();
+const { execute: saveAiConfigExecute, isLoading: aiConfigSaving } = updateAiConfigApi();
 const { getSettingsConfig, setSettingsConfig } = useLayoutConfigStore();
 const { setLogoImage, setBackgroundImage } = useAppConfigStore();
 const { changeDesignMode, containerState } = useLayoutContainerStore();
@@ -79,6 +87,31 @@ const ssoSnapshot = ref({
 
 /** Current sidebar position choice; persisted in layout config theme. */
 const sidebarPosition = ref<"left" | "right">("left");
+const aiForm = ref<{
+  enabled: boolean;
+  apiBaseUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  maxLogChars: number;
+  allowActions: boolean;
+  streamEnabled: boolean;
+  showThinking: boolean;
+  thinkingEffort: "off" | "low" | "medium" | "high";
+  hasApiKey: boolean;
+}>({
+  enabled: false,
+  apiBaseUrl: "https://api.openai.com/v1",
+  apiKey: "",
+  model: "gpt-4o-mini",
+  systemPrompt: "",
+  maxLogChars: 12000,
+  allowActions: true,
+  streamEnabled: true,
+  showThinking: true,
+  thinkingEffort: "medium",
+  hasApiKey: false
+});
 
 const submit = async (needReload: boolean = true) => {
   if (formData.value) {
@@ -128,6 +161,11 @@ const menus = arrayFilter([
     title: t("TXT_CODE_SSO_TAB_TITLE"),
     key: "sso",
     icon: ApiOutlined
+  },
+  {
+    title: t("TXT_CODE_AI_SETTINGS_TAB"),
+    key: "ai",
+    icon: RobotOutlined
   },
   {
     title: t("TXT_CODE_46cb40d5"),
@@ -393,6 +431,66 @@ const toTemplate = {
     })
 };
 
+const applyAiConfig = (cfg: AiPublicConfig) => {
+  aiForm.value = {
+    enabled: cfg.enabled,
+    apiBaseUrl: cfg.apiBaseUrl || "https://api.openai.com/v1",
+    apiKey: "",
+    model: cfg.model || "gpt-4o-mini",
+    systemPrompt: cfg.systemPrompt || "",
+    maxLogChars: cfg.maxLogChars || 12000,
+    allowActions: cfg.allowActions,
+    streamEnabled: cfg.streamEnabled !== false,
+    showThinking: cfg.showThinking !== false,
+    thinkingEffort: cfg.thinkingEffort || "medium",
+    hasApiKey: cfg.hasApiKey
+  };
+};
+
+const loadAiConfig = async () => {
+  try {
+    const res = await loadAiConfigExecute();
+    if (res.value) applyAiConfig(res.value);
+  } catch (error: unknown) {
+    reportErrorMsg(error);
+  }
+};
+
+const submitAiConfig = async () => {
+  try {
+    const payload: {
+      enabled: boolean;
+      apiBaseUrl: string;
+      model: string;
+      systemPrompt: string;
+      maxLogChars: number;
+      allowActions: boolean;
+      streamEnabled: boolean;
+      showThinking: boolean;
+      thinkingEffort: "off" | "low" | "medium" | "high";
+      apiKey?: string;
+    } = {
+      enabled: aiForm.value.enabled,
+      apiBaseUrl: aiForm.value.apiBaseUrl.trim(),
+      model: aiForm.value.model.trim(),
+      systemPrompt: aiForm.value.systemPrompt,
+      maxLogChars: Number(aiForm.value.maxLogChars) || 12000,
+      allowActions: aiForm.value.allowActions,
+      streamEnabled: aiForm.value.streamEnabled,
+      showThinking: aiForm.value.showThinking,
+      thinkingEffort: aiForm.value.thinkingEffort
+    };
+    if (aiForm.value.apiKey.trim()) {
+      payload.apiKey = aiForm.value.apiKey.trim();
+    }
+    const res = await saveAiConfigExecute({ data: payload });
+    if (res.value) applyAiConfig(res.value);
+    message.success(t("TXT_CODE_a7907771"));
+  } catch (error: unknown) {
+    reportErrorMsg(error);
+  }
+};
+
 onMounted(async () => {
   const res = await execute();
   const cfg = await getSettingsConfig();
@@ -423,6 +521,7 @@ onMounted(async () => {
       leftMenusPanelRef.value?.setActiveKey("pro");
     }
   }, 100);
+  loadAiConfig();
 });
 
 onUnmounted(() => {
@@ -1166,6 +1265,195 @@ onUnmounted(() => {
                   </div>
                 </a-form>
               </div>
+            </div>
+          </template>
+
+          <template #ai>
+            <div class="content-box" :style="{ maxHeight: card.height }">
+              <a-typography-title :level="4" class="mb-24">
+                {{ t("TXT_CODE_AI_SETTINGS_TAB") }}
+              </a-typography-title>
+              <a-spin :spinning="aiConfigLoading">
+                <div style="text-align: left">
+                  <a-form layout="vertical">
+                    <a-typography-paragraph>
+                      <a-typography-text type="secondary">
+                        {{ t("TXT_CODE_AI_SETTINGS_DESC") }}
+                      </a-typography-text>
+                    </a-typography-paragraph>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_ENABLE") }}
+                      </a-typography-title>
+                      <a-select v-model:value="aiForm.enabled" style="max-width: 320px">
+                        <a-select-option
+                          v-for="item in allYesNo"
+                          :key="String(item.value)"
+                          :value="item.value"
+                        >
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_API_BASE") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{ t("TXT_CODE_AI_API_BASE_HINT") }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-input
+                        v-model:value="aiForm.apiBaseUrl"
+                        style="max-width: 520px"
+                        placeholder="https://api.openai.com/v1"
+                      />
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_API_KEY") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{
+                            aiForm.hasApiKey
+                              ? t("TXT_CODE_AI_API_KEY_SET_HINT")
+                              : t("TXT_CODE_AI_API_KEY_HINT")
+                          }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-input-password
+                        v-model:value="aiForm.apiKey"
+                        style="max-width: 520px"
+                        :placeholder="t('TXT_CODE_AI_API_KEY_PLACEHOLDER')"
+                      />
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_MODEL") }}
+                      </a-typography-title>
+                      <a-input
+                        v-model:value="aiForm.model"
+                        style="max-width: 520px"
+                        placeholder="gpt-4o-mini / deepseek-chat"
+                      />
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_ALLOW_ACTIONS") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{ t("TXT_CODE_AI_ALLOW_ACTIONS_HINT") }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-select v-model:value="aiForm.allowActions" style="max-width: 320px">
+                        <a-select-option
+                          v-for="item in allYesNo"
+                          :key="String(item.value)"
+                          :value="item.value"
+                        >
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_STREAM_ENABLED") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{ t("TXT_CODE_AI_STREAM_ENABLED_HINT") }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-select v-model:value="aiForm.streamEnabled" style="max-width: 320px">
+                        <a-select-option
+                          v-for="item in allYesNo"
+                          :key="String(item.value)"
+                          :value="item.value"
+                        >
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_SHOW_THINKING") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{ t("TXT_CODE_AI_SHOW_THINKING_HINT") }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-select v-model:value="aiForm.showThinking" style="max-width: 320px">
+                        <a-select-option
+                          v-for="item in allYesNo"
+                          :key="String(item.value)"
+                          :value="item.value"
+                        >
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_THINKING_EFFORT") }}
+                      </a-typography-title>
+                      <a-typography-paragraph>
+                        <a-typography-text type="secondary">
+                          {{ t("TXT_CODE_AI_THINKING_EFFORT_HINT") }}
+                        </a-typography-text>
+                      </a-typography-paragraph>
+                      <a-select v-model:value="aiForm.thinkingEffort" style="max-width: 320px">
+                        <a-select-option value="off">{{ t("TXT_CODE_AI_THINKING_OFF") }}</a-select-option>
+                        <a-select-option value="low">{{ t("TXT_CODE_AI_THINKING_LOW") }}</a-select-option>
+                        <a-select-option value="medium">{{ t("TXT_CODE_AI_THINKING_MEDIUM") }}</a-select-option>
+                        <a-select-option value="high">{{ t("TXT_CODE_AI_THINKING_HIGH") }}</a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_MAX_LOG_CHARS") }}
+                      </a-typography-title>
+                      <a-input-number
+                        v-model:value="aiForm.maxLogChars"
+                        :min="1000"
+                        :max="80000"
+                        :step="1000"
+                        style="max-width: 320px"
+                      />
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">
+                        {{ t("TXT_CODE_AI_SYSTEM_PROMPT") }}
+                      </a-typography-title>
+                      <a-textarea
+                        v-model:value="aiForm.systemPrompt"
+                        :rows="4"
+                        style="max-width: 640px"
+                        :placeholder="t('TXT_CODE_AI_SYSTEM_PROMPT_HINT')"
+                      />
+                    </a-form-item>
+
+                    <div class="button">
+                      <a-button type="primary" :loading="aiConfigSaving" @click="submitAiConfig">
+                        {{ t("TXT_CODE_abfe9512") }}
+                      </a-button>
+                    </div>
+                  </a-form>
+                </div>
+              </a-spin>
             </div>
           </template>
 
