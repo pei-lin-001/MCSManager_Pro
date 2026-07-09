@@ -3524,5 +3524,14 @@
   "TXT_CODE_OV_CHART_RUNNING": "Running instances",
   "TXT_CODE_OV_NODE_COL_NODE": "Node",
   "TXT_CODE_OV_LOG_EMPTY": "No recent operations",
-  "TXT_CODE_OV_LOG_EMPTY_HINT": "Start, stop, and config changes will show up here."
+  "TXT_CODE_OV_LOG_EMPTY_HINT": "Start, stop, and config changes will show up here.",
+  "TXT_CODE_INST_PERF_TITLE": "Performance Monitor",
+  "TXT_CODE_INST_PERF_DESC": "Show CPU, memory, network and game metrics for the current instance.",
+  "TXT_CODE_INST_PERF_EMPTY": "No performance metrics yet",
+  "TXT_CODE_INST_PERF_EMPTY_STOPPED": "Instance is stopped",
+  "TXT_CODE_INST_PERF_EMPTY_BUSY": "Instance is starting or busy",
+  "TXT_CODE_INST_PERF_EMPTY_HINT": "Metrics appear after the process is running. Docker instances usually provide richer stats.",
+  "TXT_CODE_INST_PERF_LIVE": "Live",
+  "TXT_CODE_INST_PERF_PLAYERS": "Players",
+  "TXT_CODE_INST_PERF_LATENCY": "Latency"
 }

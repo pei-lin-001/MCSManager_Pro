@@ -3524,5 +3524,14 @@
   "TXT_CODE_OV_CHART_RUNNING": "运行中实例",
   "TXT_CODE_OV_NODE_COL_NODE": "节点",
   "TXT_CODE_OV_LOG_EMPTY": "暂无最近操作",
-  "TXT_CODE_OV_LOG_EMPTY_HINT": "启停实例、修改配置等操作会出现在这里。"
+  "TXT_CODE_OV_LOG_EMPTY_HINT": "启停实例、修改配置等操作会出现在这里。",
+  "TXT_CODE_INST_PERF_TITLE": "性能监控",
+  "TXT_CODE_INST_PERF_DESC": "显示当前实例的 CPU、内存、网络与游戏运行指标。",
+  "TXT_CODE_INST_PERF_EMPTY": "暂无性能数据",
+  "TXT_CODE_INST_PERF_EMPTY_STOPPED": "实例已停止",
+  "TXT_CODE_INST_PERF_EMPTY_BUSY": "实例启动中或忙碌中",
+  "TXT_CODE_INST_PERF_EMPTY_HINT": "实例运行后会显示性能指标；Docker 实例通常能提供更完整的数据。",
+  "TXT_CODE_INST_PERF_LIVE": "实时",
+  "TXT_CODE_INST_PERF_PLAYERS": "在线玩家",
+  "TXT_CODE_INST_PERF_LATENCY": "延迟"
 }
