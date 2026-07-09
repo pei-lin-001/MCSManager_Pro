@@ -58,13 +58,18 @@ onMounted(() => {
 <style lang="scss" scoped>
 .OperationLogCard {
   height: 100%;
+
+  :deep(.card-panel-content) {
+    height: calc(100% - 28px);
+    min-height: 0;
+  }
 }
 
 .log-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 100%;
+  gap: 6px;
+  height: 100%;
   overflow: auto;
   padding-right: 2px;
 }

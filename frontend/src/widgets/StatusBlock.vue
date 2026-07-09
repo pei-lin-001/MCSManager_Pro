@@ -25,7 +25,6 @@ type Tone = "ok" | "warn" | "danger" | "info" | "muted";
 
 interface KpiView {
   type: string;
-  title: string;
   icon: Component;
   primary: string;
   secondary?: string;
@@ -50,11 +49,15 @@ const kpi = computed<KpiView | null>(() => {
     const tone: Tone = total === 0 ? "muted" : offline > 0 ? "danger" : "ok";
     return {
       type: "node",
-      title: t("TXT_CODE_4b7eba50"),
       icon: CloudServerOutlined,
       primary: String(available),
       secondary: `/ ${total}`,
-      hint: total === 0 ? t("TXT_CODE_OV_KPI_NODE_EMPTY") : offline > 0 ? t("TXT_CODE_OV_KPI_NODE_OFFLINE", { n: offline }) : t("TXT_CODE_OV_KPI_NODE_OK"),
+      hint:
+        total === 0
+          ? t("TXT_CODE_OV_KPI_NODE_EMPTY")
+          : offline > 0
+            ? t("TXT_CODE_OV_KPI_NODE_OFFLINE", { n: offline })
+            : t("TXT_CODE_OV_KPI_NODE_OK"),
       percent: total > 0 ? Math.round((available / total) * 100) : 0,
       tone
     };
@@ -68,7 +71,6 @@ const kpi = computed<KpiView | null>(() => {
     const tone: Tone = total === 0 ? "muted" : running === 0 ? "warn" : "ok";
     return {
       type: "instance",
-      title: t("TXT_CODE_8201d2c6"),
       icon: AppstoreOutlined,
       primary: String(running),
       secondary: `/ ${total}`,
@@ -87,7 +89,6 @@ const kpi = computed<KpiView | null>(() => {
     const tone: Tone = failed > 0 ? "warn" : "info";
     return {
       type: "users",
-      title: t("TXT_CODE_871fb0d6"),
       icon: SafetyCertificateOutlined,
       primary: String(failed),
       secondary: `/ ${logined}`,
@@ -98,19 +99,17 @@ const kpi = computed<KpiView | null>(() => {
 
   if (type === "system") {
     const cpu = Math.min(100, Math.max(0, Number(s.cpu || 0)));
-    // s.mem is free percent in current compute path; convert to used percent.
     const freePercent = Math.min(100, Math.max(0, Number(s.mem || 0)));
     const memUsedPercent = Math.min(100, Math.max(0, 100 - freePercent));
     const memTotalGB = Number((s.system.totalmem / 1024 / 1024 / 1024).toFixed(1));
-    const memUsedGB = Number((memTotalGB * memUsedPercent) / 100).toFixed(1);
+    const memUsedGB = Number(((memTotalGB * memUsedPercent) / 100).toFixed(1));
     const worst = Math.max(cpu, memUsedPercent);
     const tone: Tone = worst >= 85 ? "danger" : worst >= 65 ? "warn" : "ok";
     return {
       type: "system",
-      title: t("TXT_CODE_f4244bbf"),
       icon: HddOutlined,
       primary: `${cpu}%`,
-      secondary: `CPU`,
+      secondary: "CPU",
       hint: t("TXT_CODE_OV_KPI_SYSTEM_HINT", { mem: `${memUsedGB}/${memTotalGB}G` }),
       tone,
       bars: [
@@ -118,7 +117,7 @@ const kpi = computed<KpiView | null>(() => {
         {
           label: t("TXT_CODE_593ee330"),
           percent: memUsedPercent,
-          detail: `${memUsedGB} / ${memTotalGB} GB`
+          detail: `${memUsedGB}/${memTotalGB}G`
         }
       ]
     };
@@ -137,50 +136,48 @@ const kpi = computed<KpiView | null>(() => {
       </div>
 
       <div v-else class="kpi" :class="`kpi--${kpi.tone}`">
-        <div class="kpi__top">
-          <div class="kpi__meta">
-            <span class="kpi__badge">
-              <component :is="kpi.icon" />
-            </span>
-            <div>
-              <div class="kpi__title">{{ kpi.title }}</div>
-              <div class="kpi__hint">{{ kpi.hint }}</div>
+        <div class="kpi__hint-row">
+          <span class="kpi__badge">
+            <component :is="kpi.icon" />
+          </span>
+          <span class="kpi__hint">{{ kpi.hint }}</span>
+          <span class="kpi__tone-dot" />
+        </div>
+
+        <template v-if="kpi.type === 'system' && kpi.bars">
+          <div class="kpi__bars">
+            <div v-for="bar in kpi.bars" :key="bar.label" class="kpi__bar">
+              <div class="kpi__bar-head">
+                <span>{{ bar.label }}</span>
+                <span class="kpi__bar-val">
+                  {{ bar.percent }}%
+                  <span v-if="bar.detail" class="kpi__bar-detail">{{ bar.detail }}</span>
+                </span>
+              </div>
+              <a-progress
+                :percent="bar.percent"
+                :stroke-color="getProgressStrokeColor(bar.percent)"
+                :stroke-width="8"
+                :show-info="false"
+              />
             </div>
           </div>
-          <div class="kpi__tone-dot" />
-        </div>
+        </template>
 
-        <div v-if="kpi.type !== 'system'" class="kpi__value-row">
-          <span class="kpi__primary">{{ kpi.primary }}</span>
-          <span v-if="kpi.secondary" class="kpi__secondary">{{ kpi.secondary }}</span>
-        </div>
-
-        <div v-if="kpi.type === 'system' && kpi.bars" class="kpi__bars">
-          <div v-for="bar in kpi.bars" :key="bar.label" class="kpi__bar">
-            <div class="kpi__bar-head">
-              <span>{{ bar.label }}</span>
-              <span class="kpi__bar-val">
-                {{ bar.percent }}%
-                <span v-if="bar.detail" class="kpi__bar-detail">{{ bar.detail }}</span>
-              </span>
-            </div>
-            <a-progress
-              :percent="bar.percent"
-              :stroke-color="getProgressStrokeColor(bar.percent)"
-              :stroke-width="10"
-              :show-info="false"
-            />
+        <template v-else>
+          <div class="kpi__value-row">
+            <span class="kpi__primary">{{ kpi.primary }}</span>
+            <span v-if="kpi.secondary" class="kpi__secondary">{{ kpi.secondary }}</span>
           </div>
-        </div>
-
-        <a-progress
-          v-else-if="typeof kpi.percent === 'number'"
-          class="kpi__progress"
-          :percent="kpi.percent"
-          :stroke-color="getProgressStrokeColor(kpi.percent)"
-          :stroke-width="8"
-          :show-info="false"
-        />
+          <a-progress
+            v-if="typeof kpi.percent === 'number'"
+            class="kpi__progress"
+            :percent="kpi.percent"
+            :stroke-color="getProgressStrokeColor(kpi.percent)"
+            :stroke-width="7"
+            :show-info="false"
+          />
+        </template>
       </div>
     </template>
   </CardPanel>
@@ -197,61 +194,51 @@ const kpi = computed<KpiView | null>(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 118px;
+  gap: 8px;
+  min-height: 0;
 
   &--loading {
     justify-content: center;
   }
 
-  &__top {
+  &__hint-row {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    align-items: center;
     gap: 8px;
-  }
-
-  &__meta {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
     min-width: 0;
   }
 
   &__badge {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 13px;
     flex: 0 0 auto;
     background: color-mix(in srgb, var(--color-primary) 14%, transparent);
     color: var(--color-primary);
   }
 
-  &__title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-gray-10);
-    line-height: 1.2;
-  }
-
   &__hint {
-    margin-top: 2px;
+    flex: 1;
+    min-width: 0;
     font-size: 12px;
     color: var(--color-gray-7);
-    line-height: 1.35;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__tone-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    margin-top: 4px;
+    flex: 0 0 auto;
     background: var(--color-primary);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
   }
 
   &__value-row {
@@ -259,10 +246,11 @@ const kpi = computed<KpiView | null>(() => {
     align-items: baseline;
     gap: 6px;
     font-variant-numeric: tabular-nums;
+    margin-top: 2px;
   }
 
   &__primary {
-    font-size: 34px;
+    font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.03em;
     line-height: 1;
@@ -270,28 +258,29 @@ const kpi = computed<KpiView | null>(() => {
   }
 
   &__secondary {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--color-gray-7);
     font-weight: 500;
   }
 
   &__progress {
-    margin-top: 2px;
-    max-width: 88%;
+    margin-top: auto;
+    max-width: 100%;
   }
 
   &__bars {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
+    margin-top: 2px;
   }
 
   &__bar-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
-    margin-bottom: 4px;
+    font-size: 11px;
+    margin-bottom: 2px;
     color: var(--color-gray-8);
   }
 
@@ -302,7 +291,7 @@ const kpi = computed<KpiView | null>(() => {
   }
 
   &__bar-detail {
-    margin-left: 8px;
+    margin-left: 6px;
     font-weight: 400;
     color: var(--color-gray-7);
   }
@@ -314,7 +303,7 @@ const kpi = computed<KpiView | null>(() => {
     }
     .kpi__tone-dot {
       background: var(--color-success);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
     }
     .kpi__primary {
       color: var(--color-success);
@@ -328,7 +317,7 @@ const kpi = computed<KpiView | null>(() => {
     }
     .kpi__tone-dot {
       background: var(--color-warning);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 18%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 18%, transparent);
     }
     .kpi__primary {
       color: var(--color-warning);
@@ -342,7 +331,7 @@ const kpi = computed<KpiView | null>(() => {
     }
     .kpi__tone-dot {
       background: var(--color-danger);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 18%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 18%, transparent);
     }
     .kpi__primary {
       color: var(--color-danger);

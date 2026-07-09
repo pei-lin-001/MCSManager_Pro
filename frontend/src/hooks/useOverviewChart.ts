@@ -22,20 +22,41 @@ export function useSimpleChart(dom: string) {
 
 export function useOverviewChart(dom: string) {
   let chart = ref<ECharts>();
+  let resizeObserver: ResizeObserver | undefined;
+
+  const resize = () => {
+    chart.value?.resize();
+  };
 
   onMounted(() => {
-    chart.value = init(document.getElementById(dom));
+    const el = document.getElementById(dom);
+    if (!el) return;
+    chart.value = init(el);
     chart.value.setOption(getChartDefaultOption());
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => resize());
+      resizeObserver.observe(el);
+    } else {
+      window.addEventListener("resize", resize);
+    }
   });
 
   onUnmounted(() => {
+    resizeObserver?.disconnect();
+    resizeObserver = undefined;
+    window.removeEventListener("resize", resize);
     chart.value?.dispose();
     chart.value = undefined;
   });
 
   return {
     instance: chart,
-    setOption: (v: any) => chart.value?.setOption(v)
+    setOption: (v: Record<string, unknown>) => {
+      chart.value?.setOption(v);
+      // Ensure canvas fits the latest card box after data updates.
+      requestAnimationFrame(() => chart.value?.resize());
+    }
   };
 }
 

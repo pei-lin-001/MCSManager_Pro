@@ -15,7 +15,6 @@ const { state } = useOverviewInfo();
 const chart = useOverviewChart(domId);
 
 const series = computed(() => {
-  // Backend currently packs runningInstance into chart.request points.
   const source = state.value?.chart?.request || [];
   return source.map((item, index) => {
     const max = source.length - 1;
@@ -39,6 +38,12 @@ watch(
     const maxY = Math.max(total || 1, ...source.map((v) => v.runningInstance), 1);
     chart.setOption({
       color: ["#10b981"],
+      grid: {
+        top: 8,
+        bottom: 24,
+        left: 34,
+        right: 10
+      },
       yAxis: {
         max: maxY,
         minInterval: 1
@@ -50,14 +55,14 @@ watch(
       series: [
         {
           type: "line",
-          smooth: 0.45,
+          smooth: 0.4,
           showSymbol: false,
           sampling: "lttb",
           lineStyle: {
-            width: 2.4,
+            width: 2.2,
             color: "#10b981",
-            shadowColor: "rgba(16, 185, 129, 0.35)",
-            shadowBlur: 8
+            shadowColor: "rgba(16, 185, 129, 0.3)",
+            shadowBlur: 6
           },
           areaStyle: {
             color: {
@@ -67,7 +72,7 @@ watch(
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: "rgba(16, 185, 129, 0.42)" },
+                { offset: 0, color: "rgba(16, 185, 129, 0.36)" },
                 { offset: 1, color: "rgba(16, 185, 129, 0.02)" }
               ]
             }
@@ -84,16 +89,18 @@ watch(
   <CardPanel class="ChartCard" style="height: 100%">
     <template #title>{{ card.title }}</template>
     <template #body>
-      <div class="chart-head">
-        <div class="chart-metric">
-          <div class="chart-metric__label">{{ t("TXT_CODE_OV_CHART_RUNNING") }}</div>
-          <div class="chart-metric__value chart-metric__value--green">
-            {{ currentValue }}
-            <span class="chart-metric__unit">/ {{ totalValue }}</span>
+      <div class="chart-body">
+        <div class="chart-head">
+          <div class="chart-metric">
+            <div class="chart-metric__label">{{ t("TXT_CODE_OV_CHART_RUNNING") }}</div>
+            <div class="chart-metric__value chart-metric__value--green">
+              {{ currentValue }}
+              <span class="chart-metric__unit">/ {{ totalValue }}</span>
+            </div>
           </div>
         </div>
+        <div :id="domId" class="chart-canvas"></div>
       </div>
-      <div :id="domId" class="chart-canvas"></div>
     </template>
   </CardPanel>
 </template>
@@ -101,12 +108,25 @@ watch(
 <style lang="scss" scoped>
 .ChartCard {
   height: 100%;
+
+  :deep(.card-panel-content) {
+    height: calc(100% - 28px);
+    min-height: 0;
+  }
+}
+
+.chart-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .chart-head {
   display: flex;
-  gap: 18px;
-  margin-bottom: 8px;
+  gap: 16px;
+  flex: 0 0 auto;
 }
 
 .chart-metric {
@@ -115,8 +135,8 @@ watch(
     color: var(--color-gray-7);
   }
   &__value {
-    margin-top: 2px;
-    font-size: 22px;
+    margin-top: 1px;
+    font-size: 20px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
@@ -127,7 +147,7 @@ watch(
   }
   &__unit {
     margin-left: 4px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--color-gray-7);
   }
@@ -135,7 +155,7 @@ watch(
 
 .chart-canvas {
   width: 100%;
-  min-height: 160px;
-  height: calc(100% - 48px);
+  flex: 1 1 auto;
+  min-height: 140px;
 }
 </style>

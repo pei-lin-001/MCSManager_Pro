@@ -82,7 +82,7 @@ const paginationConfig = computed(() => {
   <CardPanel class="NodeOverview" style="height: 100%">
     <template #title>{{ card.title }}</template>
     <template #body>
-      <div class="NodeOverview__wrap" :style="{ height: card.height }">
+      <div class="NodeOverview__wrap">
         <a-table
           :scroll="{ x: 'max-content' }"
           :columns="columns"
@@ -179,30 +179,41 @@ const paginationConfig = computed(() => {
 </template>
 
 <style lang="scss" scoped>
+.NodeOverview {
+  height: 100%;
+
+  :deep(.card-panel-content) {
+    height: calc(100% - 28px);
+    min-height: 0;
+  }
+}
+
 .NodeOverview__wrap {
   overflow: auto;
+  height: 100%;
+  min-height: 0;
   padding: 0 1px;
 }
 
 .node-cell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .node-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex: 0 0 auto;
 
   &.is-on {
     background: var(--color-success);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
   }
   &.is-off {
     background: var(--color-danger);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-danger) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 18%, transparent);
   }
 }
 
@@ -210,23 +221,24 @@ const paginationConfig = computed(() => {
   font-weight: 600;
   color: var(--color-gray-11);
   line-height: 1.2;
+  font-size: 12px;
 }
 
 .node-addr {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 1px;
+  font-size: 11px;
   color: var(--color-gray-7);
   font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
 }
 
 .metric-cell {
-  min-width: 110px;
+  min-width: 100px;
 
   &__top {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
-    margin-bottom: 4px;
+    font-size: 11px;
+    margin-bottom: 2px;
     font-variant-numeric: tabular-nums;
     color: var(--color-gray-10);
   }
@@ -237,7 +249,7 @@ const paginationConfig = computed(() => {
 }
 
 :deep(.NodeOverview__wrap .ant-table-pagination) {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
 }
 
 :deep(.NodeOverview__wrap .ant-table) {
@@ -246,6 +258,11 @@ const paginationConfig = computed(() => {
 
 :deep(.NodeOverview__wrap .ant-table-thead > tr > th) {
   font-weight: 600;
+  padding: 8px !important;
+}
+
+:deep(.NodeOverview__wrap .ant-table-tbody > tr > td) {
+  padding: 8px !important;
 }
 
 :deep(.row-offline) {
