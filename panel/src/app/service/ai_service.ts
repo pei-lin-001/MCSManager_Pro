@@ -27,7 +27,8 @@ export type AiActionType =
   | "accept_eula"
   | "update_instance_config"
   | "get_logs"
-  | "list_mods";
+  | "list_mods"
+  | "action_chain";
 
 export interface AiChatMessage {
   role: "user" | "assistant" | "system";
@@ -63,6 +64,10 @@ export interface AiProposedAction {
   configPatch?: Record<string, unknown>;
   // optional size limit for get_logs / read_file
   maxChars?: number;
+  // action_chain: ordered multi-step repair plan
+  steps?: AiProposedAction[];
+  stopOnError?: boolean;
+  title?: string;
 }
 
 export type AiChatScene = "terminal" | "mod_library";
@@ -132,6 +137,8 @@ export interface AiExecuteResponse {
   ok: boolean;
   message: string;
   result?: unknown;
+  // For action_chain, includes per-step progress even if some steps fail.
+  partial?: boolean;
 }
 
 export interface InstanceContextSnapshot {
@@ -260,7 +267,8 @@ const ALL_ACTION_TYPES: AiActionType[] = [
   "accept_eula",
   "update_instance_config",
   "get_logs",
-  "list_mods"
+  "list_mods",
+  "action_chain"
 ];
 
 const DANGEROUS_PATH_PARTS = ["../", "..\\", "/etc", "C:\\Windows", "C:/Windows"];
@@ -512,6 +520,25 @@ function validateAction(action: AiProposedAction, allowActions: boolean): void {
     }
     isSafeInstanceConfigPatch(action.configPatch);
   }
+
+  if (action.type === "action_chain") {
+    const steps = Array.isArray(action.steps) ? action.steps : [];
+    if (steps.length === 0) {
+      throw new Error("action_chain requires a non-empty steps array");
+    }
+    if (steps.length > 12) {
+      throw new Error("action_chain allows at most 12 steps");
+    }
+    for (const step of steps) {
+      if (!step || typeof step !== "object") {
+        throw new Error("action_chain contains invalid step");
+      }
+      if (step.type === "action_chain") {
+        throw new Error("Nested action_chain is not allowed");
+      }
+      validateAction(step, true);
+    }
+  }
 }
 
 function resolveThinkingEffort(
@@ -627,6 +654,27 @@ function parseModelPayload(content: string): { reply: string; actions: AiPropose
       action.configPatch = item.configPatch;
     }
 
+    if (type === "action_chain") {
+      action.title = readString(item.title).trim() || undefined;
+      action.stopOnError = item.stopOnError !== false;
+      const rawSteps = Array.isArray(item.steps) ? item.steps : [];
+      const steps: AiProposedAction[] = [];
+      for (const rawStep of rawSteps) {
+        if (!isRecord(rawStep)) continue;
+        // Reuse the same field extraction by recursively wrapping as one-item actions array payload.
+        const nested = parseModelPayload(
+          JSON.stringify({
+            reply: "nested",
+            actions: [rawStep]
+          })
+        ).actions;
+        if (nested[0] && nested[0].type !== "action_chain") {
+          steps.push(nested[0]);
+        }
+      }
+      action.steps = steps;
+    }
+
     try {
       validateAction(action, true);
       actions.push(action);
@@ -685,6 +733,7 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "- accept_eula: set eula=true for Minecraft servers",
     "- update_instance_config: patch safe instance launch settings (startCommand/cwd/type/etc.)",
     "- get_logs: pull latest terminal logs when more evidence is needed",
+    "- action_chain: multi-step automatic repair plan. Operator confirms once, backend runs steps in order",
     "",
     "Safe command whitelist examples:",
     "say/broadcast, save-all/save-on/save-off, list,",
@@ -750,8 +799,10 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "Rules:",
     '- "reply" is required and must be user-facing Markdown.',
     '- "actions" must be an array. Use [] when no executable action is needed.',
-    "- action.type only: open|stop|restart|kill|command|install_mod|toggle_mod|delete_mod|list_files|read_file|write_file|delete_files|mkdir|download_file|accept_eula|update_instance_config|get_logs|list_mods",
+    "- action.type only: open|stop|restart|kill|command|install_mod|toggle_mod|delete_mod|list_files|read_file|write_file|delete_files|mkdir|download_file|accept_eula|update_instance_config|get_logs|list_mods|action_chain",
     "- Prefer proposing concrete fix actions over pure advice when a supported action can solve the issue.",
+    "- For multi-step repairs (e.g. read logs -> accept EULA -> fix config -> restart), prefer one action_chain with ordered steps instead of many separate actions.",
+    "- action_chain example: {\"type\":\"action_chain\",\"title\":\"Fix boot failure\",\"stopOnError\":true,\"reason\":\"...\",\"steps\":[{\"type\":\"get_logs\",\"reason\":\"...\"},{\"type\":\"accept_eula\",\"reason\":\"...\"},{\"type\":\"restart\",\"reason\":\"...\"}]}",
     "- For command actions, command must be whitelist-safe and without shell chaining.",
     "- For file actions, use instance-relative paths only.",
     "- Prefer raw JSON only. Do not wrap the whole response in markdown fences.",
@@ -1826,6 +1877,63 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       size: full.length
     };
     message = `Fetched latest logs (${Math.min(full.length, maxChars)} chars)`;
+  } else if (type === "action_chain") {
+    const steps = Array.isArray(action.steps) ? action.steps : [];
+    const stopOnError = action.stopOnError !== false;
+    const stepResults: Array<Record<string, unknown>> = [];
+    let failed = false;
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      try {
+        const stepRes = await executeAiAction({
+          daemonId: req.daemonId,
+          instanceUuid: req.instanceUuid,
+          action: step,
+          operatorName: req.operatorName,
+          operatorIp: req.operatorIp
+        });
+        stepResults.push({
+          index: i,
+          type: step.type,
+          ok: true,
+          message: stepRes.message,
+          result: stepRes.result
+        });
+      } catch (error: unknown) {
+        failed = true;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        stepResults.push({
+          index: i,
+          type: step.type,
+          ok: false,
+          message: errMsg
+        });
+        if (stopOnError) break;
+      }
+    }
+    const okCount = stepResults.filter((s) => s.ok).length;
+    result = {
+      title: action.title || "AI repair chain",
+      stopOnError,
+      total: steps.length,
+      completed: stepResults.length,
+      successCount: okCount,
+      failed,
+      steps: stepResults
+    };
+    message = failed
+      ? `Action chain finished with errors (${okCount}/${steps.length} succeeded)`
+      : `Action chain completed (${okCount}/${steps.length})`;
+
+    logger.info(
+      `[AI] execute type=${type} instance=${req.instanceUuid} daemon=${req.daemonId} chain_ok=${!failed}`
+    );
+    return {
+      ok: !failed,
+      message,
+      result,
+      partial: failed
+    };
   } else {
     throw new Error(`Unsupported AI action type: ${type}`);
   }

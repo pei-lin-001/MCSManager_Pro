@@ -19,7 +19,8 @@ export type AiActionType =
   | "accept_eula"
   | "update_instance_config"
   | "get_logs"
-  | "list_mods";
+  | "list_mods"
+  | "action_chain";
 export type AiChatScene = "terminal" | "mod_library";
 export type AiThinkingEffort = "off" | "low" | "medium" | "high";
 
@@ -47,6 +48,9 @@ export interface AiProposedAction {
   pageSize?: number;
   configPatch?: Record<string, unknown>;
   maxChars?: number;
+  steps?: AiProposedAction[];
+  stopOnError?: boolean;
+  title?: string;
 }
 
 export interface AiChatMessage {
@@ -99,6 +103,7 @@ export interface AiExecuteResponse {
   ok: boolean;
   message: string;
   result?: unknown;
+  partial?: boolean;
 }
 
 export type AiStreamEvent =

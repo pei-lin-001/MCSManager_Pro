@@ -71,7 +71,8 @@ function parseAction(value: unknown): AiProposedAction {
     "accept_eula",
     "update_instance_config",
     "get_logs",
-    "list_mods"
+    "list_mods",
+    "action_chain"
   ];
   if (!allowed.includes(type)) {
     throw new Error("Invalid action type");
@@ -130,6 +131,12 @@ function parseAction(value: unknown): AiProposedAction {
   }
   if (type === "update_instance_config" && isRecord(value.configPatch)) {
     action.configPatch = value.configPatch;
+  }
+  if (type === "action_chain") {
+    action.title = readString(value.title).trim() || undefined;
+    action.stopOnError = value.stopOnError !== false;
+    const rawSteps = Array.isArray(value.steps) ? value.steps : [];
+    action.steps = rawSteps.map((step) => parseAction(step));
   }
   return action;
 }

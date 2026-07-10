@@ -3574,5 +3574,10 @@
   "TXT_CODE_AI_ACTION_UPDATE_CONFIG": "Update instance config",
   "TXT_CODE_AI_ACTION_GET_LOGS": "Fetch latest logs",
   "TXT_CODE_AI_ACTION_LIST_MODS": "List installed mods/plugins",
-  "TXT_CODE_AI_RESULT_TRUNCATED": "Result truncated for display."
+  "TXT_CODE_AI_RESULT_TRUNCATED": "Result truncated for display.",
+  "TXT_CODE_AI_ACTION_CHAIN": "Auto repair chain",
+  "TXT_CODE_AI_ACTION_CHAIN_STEPS": "steps",
+  "TXT_CODE_AI_CONFIRM_CHAIN": "Confirm and run all steps",
+  "TXT_CODE_AI_CHAIN_PARTIAL": "Chain finished with partial errors",
+  "TXT_CODE_AI_CHAIN_PROGRESS": "Chain progress"
 }

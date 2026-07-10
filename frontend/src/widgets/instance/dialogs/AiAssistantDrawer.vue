@@ -219,6 +219,11 @@ const actionLabel = (action: AiProposedAction): string => {
   if (action.type === "update_instance_config") return t("TXT_CODE_AI_ACTION_UPDATE_CONFIG");
   if (action.type === "get_logs") return t("TXT_CODE_AI_ACTION_GET_LOGS");
   if (action.type === "list_mods") return t("TXT_CODE_AI_ACTION_LIST_MODS");
+  if (action.type === "action_chain") {
+    const title = action.title || t("TXT_CODE_AI_ACTION_CHAIN");
+    const n = action.steps?.length || 0;
+    return `${title} (${n} ${t("TXT_CODE_AI_ACTION_CHAIN_STEPS")})`;
+  }
   return `${t("TXT_CODE_AI_ACTION_COMMAND")}: ${action.command || ""}`;
 };
 
@@ -341,7 +346,7 @@ const sendMessage = async (preset?: string) => {
 
 const confirmAction = async (action: AiProposedAction, index: number) => {
   if (!props.instanceId || !props.daemonId) return;
-  const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}-${action.target || ""}-${action.path || ""}-${action.fileName || ""}`;
+  const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}-${action.target || ""}-${action.path || ""}-${action.fileName || ""}-${action.title || ""}`;
   executingKey.value = key;
   try {
     const res = await requestExecute({
@@ -351,11 +356,34 @@ const confirmAction = async (action: AiProposedAction, index: number) => {
         action
       }
     });
-    message.success(res.value?.message || t("TXT_CODE_AI_ACTION_DONE"));
 
-    let detail = `${t("TXT_CODE_AI_ACTION_DONE")}: ${actionLabel(action)}`;
+    const ok = res.value?.ok !== false;
+    if (ok) {
+      message.success(res.value?.message || t("TXT_CODE_AI_ACTION_DONE"));
+    } else {
+      message.warning(res.value?.message || t("TXT_CODE_AI_CHAIN_PARTIAL"));
+    }
+
+    let detail = `${ok ? t("TXT_CODE_AI_ACTION_DONE") : t("TXT_CODE_AI_CHAIN_PARTIAL")}: ${actionLabel(action)}`;
     const result = res.value?.result as any;
-    if (action.type === "read_file" && result?.content != null) {
+
+    if (action.type === "action_chain" && result?.steps) {
+      detail += `\n\n${t("TXT_CODE_AI_CHAIN_PROGRESS")}: ${result.successCount}/${result.total}`;
+      const lines = (result.steps as any[])
+        .map((step, i) => {
+          const mark = step.ok ? "✅" : "❌";
+          return `${mark} ${i + 1}. ${step.type}: ${step.message || ""}`;
+        })
+        .join("\n");
+      detail += `\n\n\`\`\`text\n${lines}\n\`\`\``;
+      // include short outputs from read/get_logs steps
+      for (const step of result.steps as any[]) {
+        if (!step?.ok) continue;
+        if ((step.type === "read_file" || step.type === "get_logs") && step.result?.content) {
+          detail += `\n\n**${step.type}**\n\`\`\`text\n${String(step.result.content).slice(0, 2500)}\n\`\`\``;
+        }
+      }
+    } else if (action.type === "read_file" && result?.content != null) {
       detail += `\n\n\`\`\`text\n${String(result.content).slice(0, 4000)}\n\`\`\``;
       if (result.truncated) detail += `\n\n_${t("TXT_CODE_AI_RESULT_TRUNCATED")}_`;
     } else if (action.type === "get_logs" && result?.content != null) {
@@ -366,7 +394,7 @@ const confirmAction = async (action: AiProposedAction, index: number) => {
         const pretty = JSON.stringify(result, null, 2);
         detail += `\n\n\`\`\`json\n${pretty.slice(0, 4000)}\n\`\`\``;
       } catch {
-        // ignore stringify issues
+        // ignore
       }
     } else if (res.value?.message) {
       detail += `\n${res.value.message}`;
@@ -538,6 +566,18 @@ onUnmounted(() => {
             >
               <div class="action-title">{{ actionLabel(action) }}</div>
               <div class="action-reason">{{ action.reason }}</div>
+              <div
+                v-if="action.type === 'action_chain' && action.steps?.length"
+                class="action-steps"
+              >
+                <div
+                  v-for="(step, stepIndex) in action.steps"
+                  :key="`${step.type}-${stepIndex}`"
+                  class="action-step-item"
+                >
+                  {{ stepIndex + 1 }}. {{ actionLabel(step) }}
+                </div>
+              </div>
               <a-button
                 type="primary"
                 size="small"
@@ -545,12 +585,16 @@ onUnmounted(() => {
                 :loading="
                   executeLoading &&
                   executingKey ===
-                    `${index}-${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.versionId || ''}-${action.target || ''}-${action.path || ''}-${action.fileName || ''}`
+                    `${index}-${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.versionId || ''}-${action.target || ''}-${action.path || ''}-${action.fileName || ''}-${action.title || ''}`
                 "
                 @click="confirmAction(action, index)"
               >
                 <CheckOutlined />
-                {{ t("TXT_CODE_AI_CONFIRM_ACTION") }}
+                {{
+                  action.type === "action_chain"
+                    ? t("TXT_CODE_AI_CONFIRM_CHAIN")
+                    : t("TXT_CODE_AI_CONFIRM_ACTION")
+                }}
               </a-button>
             </div>
           </div>
@@ -759,6 +803,17 @@ onUnmounted(() => {
   margin-top: 10px;
 }
 
+.action-steps {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.action-step-item {
+  opacity: 0.9;
+}
 .action-card {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
