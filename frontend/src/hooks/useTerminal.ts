@@ -84,13 +84,31 @@ export function useTerminal() {
     h: 40
   };
 
+  let currentDaemonId = "";
+  let currentInstanceId = "";
+  let reconnecting = false;
+
+  const cleanupSocket = () => {
+    if (!socket) return;
+    try {
+      socket.removeAllListeners();
+      socket.disconnect();
+    } catch {
+      // ignore cleanup errors
+    }
+    socket = undefined;
+  };
+
   const execute = async (config: UseTerminalParams) => {
     isReady.value = false;
     isManualDisconnect = false;
+    currentDaemonId = config.daemonId;
+    currentInstanceId = config.instanceId;
 
-    if (socket) {
-      return socket;
-    }
+    // Always re-register a fresh stream password. Reusing a disconnected/old
+    // socket leaves the terminal stuck on "loading" / "maintenance".
+    cleanupSocket();
+    isConnect.value = false;
 
     const res = await setUpTerminalStreamChannel().execute({
       params: {
@@ -117,15 +135,16 @@ export function useTerminal() {
 
     socket.on("connect", () => {
       console.log("[Socket.io] connect:", addr);
+      // Do NOT mark connected for UI until stream/auth succeeds.
       socket?.emit("stream/auth", {
         data: { password }
       });
-      isConnect.value = true;
     });
 
     socket.on("connect_error", (error) => {
       console.error("[Socket.io] Connect error: ", addr, error);
       isConnect.value = false;
+      isReady.value = false;
       events.emit("error", error);
     });
 
@@ -140,17 +159,20 @@ export function useTerminal() {
     socket.on("stream/auth", (packet) => {
       const data = packet.data;
       if (data === true) {
+        isConnect.value = true;
+        isReady.value = true;
         socket?.emit("stream/detail", {});
         events.emit("connect");
-        isReady.value = true;
       } else {
+        isConnect.value = false;
+        isReady.value = false;
         events.emit("error", new Error("Stream/auth error!"));
       }
     });
 
     socket.on("reconnect", () => {
       console.warn("[Socket.io] reconnect:", addr);
-      isConnect.value = true;
+      // Re-auth with the same password first; if invalid, outer reconnect will refresh.
       socket?.emit("stream/auth", {
         data: { password }
       });
@@ -161,18 +183,34 @@ export function useTerminal() {
         console.warn("[Socket.io] disconnect:", addr);
       }
       isConnect.value = false;
+      isReady.value = false;
       events.emit("disconnect");
     });
 
     socket.on("instance/stdout", (packet) => events.emit("stdout", packet?.data));
     socket.on("stream/detail", (packet) => {
       const v = packet?.data as InstanceDetail | undefined;
+      if (!v) return;
       state.value = v;
       events.emit("detail", v);
     });
 
     socket.connect();
     return socket;
+  };
+
+  const reconnect = async () => {
+    if (reconnecting) return;
+    if (!currentDaemonId || !currentInstanceId) return;
+    reconnecting = true;
+    try {
+      await execute({
+        daemonId: currentDaemonId,
+        instanceId: currentInstanceId
+      });
+    } finally {
+      reconnecting = false;
+    }
   };
 
   const refreshWindowSize = (w: number, h: number) => {
@@ -358,24 +396,37 @@ export function useTerminal() {
   };
 
   let statusQueryTask: NodeJS.Timeout;
+  let reconnectTask: NodeJS.Timeout | undefined;
   onMounted(() => {
     statusQueryTask = setInterval(() => {
-      if (socket?.connected) socket?.emit("stream/detail", {});
+      if (socket?.connected && isReady.value) socket?.emit("stream/detail", {});
     }, 1000);
+
+    // Auto-recover terminal channel after unexpected disconnect.
+    reconnectTask = setInterval(() => {
+      if (isManualDisconnect || reconnecting) return;
+      if (!currentDaemonId || !currentInstanceId) return;
+      if (socket?.connected && isConnect.value) return;
+      void reconnect();
+    }, 4000);
   });
 
   onUnmounted(() => {
     clearInterval(fitAddonTask);
     clearInterval(statusQueryTask);
+    if (reconnectTask) clearInterval(reconnectTask);
     events.removeAllListeners();
     isManualDisconnect = true;
-    socket?.disconnect();
-    socket?.removeAllListeners();
+    cleanupSocket();
   });
 
   const isStopped = computed(() => state?.value?.status === INSTANCE_STATUS_CODE.STOPPED);
   const isRunning = computed(() => state?.value?.status === INSTANCE_STATUS_CODE.RUNNING);
-  const isBuys = computed(() => state?.value?.status === INSTANCE_STATUS_CODE.BUSY);
+  // Only true when daemon explicitly reports BUSY. Undefined state is "connecting", not maintenance.
+  const isBuys = computed(
+    () => state.value != null && state.value.status === INSTANCE_STATUS_CODE.BUSY
+  );
+  const hasStatus = computed(() => state.value != null && typeof state.value.status === "number");
 
   return {
     events,
@@ -383,12 +434,15 @@ export function useTerminal() {
     isRunning,
     isBuys,
     isStopped,
+    hasStatus,
     terminal,
     socketAddress,
     isConnect,
+    isReady,
     isGlobalTerminal,
     isDockerMode,
     execute,
+    reconnect,
     initTerminalWindow,
     sendCommand,
     clearTerminal

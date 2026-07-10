@@ -60,6 +60,7 @@ const {
   isStopped,
   isRunning,
   isBuys,
+  isConnect,
   isGlobalTerminal,
   isDockerMode,
   clearTerminal
@@ -113,7 +114,13 @@ const toOpenInstance = async () => {
 };
 
 const updateCmd = computed(() => (instanceInfo.value?.config.updateCommand ? true : false));
-const instanceStatusText = computed(() => INSTANCE_STATUS[instanceInfo.value?.status ?? -1]);
+const instanceStatusText = computed(() => {
+  const status = instanceInfo.value?.status;
+  if (status === undefined || status === null) {
+    return isConnect.value ? t("TXT_CODE_AI_TERMINAL_SYNCING") : t("TXT_CODE_AI_TERMINAL_CONNECTING");
+  }
+  return INSTANCE_STATUS[status] || String(status);
+});
 const quickOperations = computed(() =>
   arrayFilter([
     {
@@ -289,6 +296,10 @@ onUnmounted(() => {
                   <LoadingOutlined />
                   {{ instanceStatusText }}
                 </a-tag>
+                <a-tag v-else-if="!instanceInfo" color="blue">
+                  <LoadingOutlined />
+                  {{ instanceStatusText }}
+                </a-tag>
                 <a-tag v-else-if="instanceStatusText">
                   <InfoCircleOutlined />
                   {{ instanceStatusText }}
@@ -398,6 +409,10 @@ onUnmounted(() => {
           {{ instanceStatusText }}
         </a-tag>
         <a-tag v-else-if="isBuys" color="red">
+          <LoadingOutlined />
+          {{ instanceStatusText }}
+        </a-tag>
+        <a-tag v-else-if="!instanceInfo" color="blue">
           <LoadingOutlined />
           {{ instanceStatusText }}
         </a-tag>

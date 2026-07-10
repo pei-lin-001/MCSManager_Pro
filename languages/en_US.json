@@ -3579,5 +3579,7 @@
   "TXT_CODE_AI_ACTION_CHAIN_STEPS": "steps",
   "TXT_CODE_AI_CONFIRM_CHAIN": "Confirm and run all steps",
   "TXT_CODE_AI_CHAIN_PARTIAL": "Chain finished with partial errors",
-  "TXT_CODE_AI_CHAIN_PROGRESS": "Chain progress"
+  "TXT_CODE_AI_CHAIN_PROGRESS": "Chain progress",
+  "TXT_CODE_AI_TERMINAL_CONNECTING": "Connecting to terminal...",
+  "TXT_CODE_AI_TERMINAL_SYNCING": "Syncing instance status..."
 }

@@ -36,6 +36,7 @@ const {
   isConnect,
   socketAddress,
   execute: setUpTerminal,
+  reconnect,
   initTerminalWindow,
   sendCommand,
   clearTerminal
@@ -102,7 +103,16 @@ events.once("detail", async () => {
   } catch (error: any) {}
 });
 
-const refreshPage = () => {
+const refreshPage = async () => {
+  try {
+    socketError.value = undefined;
+    if (reconnect) {
+      await reconnect();
+      return;
+    }
+  } catch (error: any) {
+    console.error(error);
+  }
   window.location.reload();
 };
 
