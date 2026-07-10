@@ -183,12 +183,42 @@ const actionLabel = (action: AiProposedAction): string => {
   if (action.type === "open") return t("TXT_CODE_AI_ACTION_OPEN");
   if (action.type === "stop") return t("TXT_CODE_AI_ACTION_STOP");
   if (action.type === "restart") return t("TXT_CODE_AI_ACTION_RESTART");
+  if (action.type === "kill") return t("TXT_CODE_AI_ACTION_KILL");
   if (action.type === "install_mod") {
     const name = action.projectName || action.modQuery || action.fileName || action.projectId || "";
     return name
       ? `${t("TXT_CODE_AI_ACTION_INSTALL_MOD")}: ${name}`
       : t("TXT_CODE_AI_ACTION_INSTALL_MOD");
   }
+  if (action.type === "toggle_mod") {
+    return `${t("TXT_CODE_AI_ACTION_TOGGLE_MOD")}: ${action.fileName || ""}`;
+  }
+  if (action.type === "delete_mod") {
+    return `${t("TXT_CODE_AI_ACTION_DELETE_MOD")}: ${action.fileName || ""}`;
+  }
+  if (action.type === "list_files") {
+    return `${t("TXT_CODE_AI_ACTION_LIST_FILES")}: ${action.path || action.target || "."}`;
+  }
+  if (action.type === "read_file") {
+    return `${t("TXT_CODE_AI_ACTION_READ_FILE")}: ${action.target || action.path || ""}`;
+  }
+  if (action.type === "write_file") {
+    return `${t("TXT_CODE_AI_ACTION_WRITE_FILE")}: ${action.target || action.path || ""}`;
+  }
+  if (action.type === "delete_files") {
+    const n = action.targets?.length || (action.target || action.path || action.fileName ? 1 : 0);
+    return `${t("TXT_CODE_AI_ACTION_DELETE_FILES")} (${n})`;
+  }
+  if (action.type === "mkdir") {
+    return `${t("TXT_CODE_AI_ACTION_MKDIR")}: ${action.target || action.path || ""}`;
+  }
+  if (action.type === "download_file") {
+    return `${t("TXT_CODE_AI_ACTION_DOWNLOAD_FILE")}: ${action.fileName || action.target || ""}`;
+  }
+  if (action.type === "accept_eula") return t("TXT_CODE_AI_ACTION_ACCEPT_EULA");
+  if (action.type === "update_instance_config") return t("TXT_CODE_AI_ACTION_UPDATE_CONFIG");
+  if (action.type === "get_logs") return t("TXT_CODE_AI_ACTION_GET_LOGS");
+  if (action.type === "list_mods") return t("TXT_CODE_AI_ACTION_LIST_MODS");
   return `${t("TXT_CODE_AI_ACTION_COMMAND")}: ${action.command || ""}`;
 };
 
@@ -311,7 +341,7 @@ const sendMessage = async (preset?: string) => {
 
 const confirmAction = async (action: AiProposedAction, index: number) => {
   if (!props.instanceId || !props.daemonId) return;
-  const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}`;
+  const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}-${action.target || ""}-${action.path || ""}-${action.fileName || ""}`;
   executingKey.value = key;
   try {
     const res = await requestExecute({
@@ -322,9 +352,29 @@ const confirmAction = async (action: AiProposedAction, index: number) => {
       }
     });
     message.success(res.value?.message || t("TXT_CODE_AI_ACTION_DONE"));
+
+    let detail = `${t("TXT_CODE_AI_ACTION_DONE")}: ${actionLabel(action)}`;
+    const result = res.value?.result as any;
+    if (action.type === "read_file" && result?.content != null) {
+      detail += `\n\n\`\`\`text\n${String(result.content).slice(0, 4000)}\n\`\`\``;
+      if (result.truncated) detail += `\n\n_${t("TXT_CODE_AI_RESULT_TRUNCATED")}_`;
+    } else if (action.type === "get_logs" && result?.content != null) {
+      detail += `\n\n\`\`\`log\n${String(result.content).slice(0, 4000)}\n\`\`\``;
+      if (result.truncated) detail += `\n\n_${t("TXT_CODE_AI_RESULT_TRUNCATED")}_`;
+    } else if ((action.type === "list_files" || action.type === "list_mods") && result) {
+      try {
+        const pretty = JSON.stringify(result, null, 2);
+        detail += `\n\n\`\`\`json\n${pretty.slice(0, 4000)}\n\`\`\``;
+      } catch {
+        // ignore stringify issues
+      }
+    } else if (res.value?.message) {
+      detail += `\n${res.value.message}`;
+    }
+
     messages.value.push({
       role: "system",
-      content: `${t("TXT_CODE_AI_ACTION_DONE")}: ${actionLabel(action)}`
+      content: detail
     });
     await scrollToBottom();
   } catch (error: unknown) {
@@ -456,15 +506,19 @@ onUnmounted(() => {
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
             v-if="
-              item.role === 'assistant' &&
+              (item.role === 'assistant' || item.role === 'system') &&
               item.content &&
-              extractDisplayText(item.content, item.streaming)
+              (item.role === 'system' || extractDisplayText(item.content, item.streaming))
             "
             class="chat-content global-markdown-html ai-markdown"
-            v-html="renderMarkdown(item.content, item.streaming)"
+            v-html="
+              item.role === 'system'
+                ? markdownToHTML(item.content)
+                : renderMarkdown(item.content, item.streaming)
+            "
           ></div>
           <div
-            v-else-if="item.role !== 'assistant' && item.content"
+            v-else-if="item.role === 'user' && item.content"
             class="chat-content"
           >
             {{ item.content }}
@@ -479,7 +533,7 @@ onUnmounted(() => {
           <div v-if="item.actions && item.actions.length > 0" class="action-list">
             <div
               v-for="(action, actionIndex) in item.actions"
-              :key="`${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${actionIndex}`"
+              :key="`${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.target || ''}-${action.path || ''}-${action.fileName || ''}-${actionIndex}`"
               class="action-card"
             >
               <div class="action-title">{{ actionLabel(action) }}</div>
@@ -491,7 +545,7 @@ onUnmounted(() => {
                 :loading="
                   executeLoading &&
                   executingKey ===
-                    `${index}-${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.versionId || ''}`
+                    `${index}-${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.versionId || ''}-${action.target || ''}-${action.path || ''}-${action.fileName || ''}`
                 "
                 @click="confirmAction(action, index)"
               >

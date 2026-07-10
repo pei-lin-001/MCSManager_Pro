@@ -9,7 +9,25 @@ import { operationLogger } from "./operation_logger";
 import RemoteRequest from "./remote_command";
 import RemoteServiceSubsystem from "./remote_service";
 
-export type AiActionType = "open" | "stop" | "restart" | "command" | "install_mod";
+export type AiActionType =
+  | "open"
+  | "stop"
+  | "restart"
+  | "kill"
+  | "command"
+  | "install_mod"
+  | "toggle_mod"
+  | "delete_mod"
+  | "list_files"
+  | "read_file"
+  | "write_file"
+  | "delete_files"
+  | "mkdir"
+  | "download_file"
+  | "accept_eula"
+  | "update_instance_config"
+  | "get_logs"
+  | "list_mods";
 
 export interface AiChatMessage {
   role: "user" | "assistant" | "system";
@@ -33,6 +51,18 @@ export interface AiProposedAction {
   fallbackUrl?: string;
   projectName?: string;
   versionName?: string;
+  // generic file / path ops
+  path?: string;
+  target?: string;
+  content?: string;
+  targets?: string[];
+  // listing / paging
+  page?: number;
+  pageSize?: number;
+  // instance config patch (safe subset only)
+  configPatch?: Record<string, unknown>;
+  // optional size limit for get_logs / read_file
+  maxChars?: number;
 }
 
 export type AiChatScene = "terminal" | "mod_library";
@@ -164,7 +194,16 @@ const SAFE_COMMAND_PATTERNS: RegExp[] = [
   /^plugins$/i,
   /^pl$/i,
   /^bukkit:version$/i,
-  /^paper\s+version$/i
+  /^paper\s+version$/i,
+  /^forge\s+.+/i,
+  /^neoforge\s+.+/i,
+  /^fabric\s+.+/i,
+  /^spark\s+.+/i,
+  /^carpet\s+.+/i,
+  /^seed$/i,
+  /^worldborder\s+.+/i,
+  /^banlist(\s+.+)?$/i,
+  /^whitelist$/i
 ];
 
 const STATUS_TEXT: Record<number, string> = {
@@ -202,6 +241,170 @@ function isSafeCommand(command: string): boolean {
   return SAFE_COMMAND_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
+
+const ALL_ACTION_TYPES: AiActionType[] = [
+  "open",
+  "stop",
+  "restart",
+  "kill",
+  "command",
+  "install_mod",
+  "toggle_mod",
+  "delete_mod",
+  "list_files",
+  "read_file",
+  "write_file",
+  "delete_files",
+  "mkdir",
+  "download_file",
+  "accept_eula",
+  "update_instance_config",
+  "get_logs",
+  "list_mods"
+];
+
+const DANGEROUS_PATH_PARTS = ["../", "..\\", "/etc", "C:\\Windows", "C:/Windows"];
+
+function normalizeRelPath(input?: string): string {
+  const raw = String(input || "").trim().replace(/\\/g, "/");
+  if (!raw) return "";
+  if (raw.startsWith("/") || /^[a-zA-Z]:/.test(raw)) {
+    throw new Error("Absolute paths are not allowed. Use instance-relative paths.");
+  }
+  if (raw.includes("\0")) throw new Error("Invalid path");
+  const lowered = raw.toLowerCase();
+  for (const bad of DANGEROUS_PATH_PARTS) {
+    if (lowered.includes(bad.toLowerCase())) {
+      throw new Error(`Path is not allowed: ${raw}`);
+    }
+  }
+  const parts = raw.split("/").filter((p) => p && p !== ".");
+  const stack: string[] = [];
+  for (const part of parts) {
+    if (part === "..") {
+      if (stack.length === 0) throw new Error(`Path escapes instance root: ${raw}`);
+      stack.pop();
+    } else {
+      stack.push(part);
+    }
+  }
+  return stack.join("/");
+}
+
+function isProtectedPath(relPath: string): boolean {
+  const p = relPath.replace(/\\/g, "/").toLowerCase();
+  return (
+    p === "world" ||
+    p.startsWith("world/") ||
+    p === "world_nether" ||
+    p.startsWith("world_nether/") ||
+    p === "world_the_end" ||
+    p.startsWith("world_the_end/") ||
+    p.includes("/session.lock")
+  );
+}
+
+function isWritableConfigPath(relPath: string): boolean {
+  const p = relPath.replace(/\\/g, "/").toLowerCase();
+  const allowExact = new Set([
+    "eula.txt",
+    "server.properties",
+    "ops.json",
+    "whitelist.json",
+    "banned-players.json",
+    "banned-ips.json",
+    "bukkit.yml",
+    "spigot.yml",
+    "paper.yml",
+    "paper-global.yml",
+    "paper-world-defaults.yml",
+    "purpur.yml",
+    "pufferfish.yml",
+    "config/paper-global.yml",
+    "config/paper-world-defaults.yml",
+    "config.yml",
+    "settings.yml",
+    "permissions.yml",
+    "commands.yml",
+    "help.yml",
+    "user_jvm_args.txt",
+    "start.sh",
+    "start.bat",
+    "run.sh",
+    "run.bat"
+  ]);
+  if (allowExact.has(p)) return true;
+  if (
+    p.endsWith(".properties") ||
+    p.endsWith(".yml") ||
+    p.endsWith(".yaml") ||
+    p.endsWith(".json") ||
+    p.endsWith(".toml") ||
+    p.endsWith(".txt") ||
+    p.endsWith(".cfg") ||
+    p.endsWith(".conf")
+  ) {
+    if (
+      p.startsWith("config/") ||
+      p.startsWith("configs/") ||
+      p.startsWith("plugins/") ||
+      p.startsWith("mods/") ||
+      p.startsWith("kubejs/") ||
+      p.startsWith("scripts/") ||
+      p.startsWith("local/") ||
+      p.startsWith("world/serverconfig/") ||
+      p.startsWith("serverconfig/")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isSafeInstanceConfigPatch(patch: Record<string, unknown>): void {
+  const allowedTop = new Set([
+    "nickname",
+    "startCommand",
+    "stopCommand",
+    "cwd",
+    "type",
+    "ie",
+    "oe",
+    "fileCode",
+    "processType",
+    "updateCommand",
+    "docker",
+    "pingConfig",
+    "eventTask",
+    "terminalOption",
+    "extraServiceConfig",
+    "tag",
+    "maxSpace",
+    "runAs",
+    "basePort"
+  ]);
+  for (const key of Object.keys(patch)) {
+    if (!allowedTop.has(key)) {
+      throw new Error(`Config field not allowed for AI update: ${key}`);
+    }
+  }
+  if (isRecord(patch.docker)) {
+    const docker = patch.docker;
+    if (docker.privileged === true) {
+      throw new Error("AI is not allowed to enable docker privileged mode");
+    }
+    if (docker.extraVolumes != null || docker.devices != null || docker.capAdd != null) {
+      throw new Error("AI is not allowed to change docker volumes/devices/capabilities");
+    }
+  }
+}
+
+function clampText(input: string, maxChars: number): string {
+  if (!input) return "";
+  if (input.length <= maxChars) return input;
+  return input.slice(input.length - maxChars);
+}
+
 function validateAction(action: AiProposedAction, allowActions: boolean): void {
   if (!allowActions) {
     throw new Error("AI actions are disabled in settings");
@@ -209,20 +412,20 @@ function validateAction(action: AiProposedAction, allowActions: boolean): void {
   if (!action || typeof action.type !== "string") {
     throw new Error("Invalid AI action");
   }
-  if (!["open", "stop", "restart", "command", "install_mod"].includes(action.type)) {
+  if (!ALL_ACTION_TYPES.includes(action.type)) {
     throw new Error(`Unsupported AI action type: ${action.type}`);
   }
+
   if (action.type === "command") {
     const command = String(action.command || "").trim();
-    if (!command) {
-      throw new Error("Command action requires a non-empty command");
-    }
+    if (!command) throw new Error("Command action requires a non-empty command");
     if (!isSafeCommand(command)) {
       throw new Error(
         `Command is not in the safe whitelist: ${command}. Only common Minecraft/server console commands are allowed.`
       );
     }
   }
+
   if (action.type === "install_mod") {
     const hasResolved = Boolean(action.url && action.fileName);
     const hasLookup =
@@ -242,6 +445,72 @@ function validateAction(action: AiProposedAction, allowActions: boolean): void {
     if (action.projectType && action.projectType !== "mod" && action.projectType !== "plugin") {
       throw new Error("install_mod projectType must be mod or plugin");
     }
+  }
+
+  if (action.type === "toggle_mod" || action.type === "delete_mod") {
+    const fileName = String(action.fileName || "").trim();
+    if (!fileName) throw new Error(`${action.type} requires fileName`);
+    normalizeRelPath(fileName);
+  }
+
+  if (action.type === "list_files") {
+    if (action.path) normalizeRelPath(action.path);
+  }
+
+  if (action.type === "read_file" || action.type === "write_file" || action.type === "mkdir") {
+    const target = normalizeRelPath(action.target || action.path);
+    if (!target) throw new Error(`${action.type} requires target/path`);
+    if (action.type === "write_file") {
+      if (typeof action.content !== "string") {
+        throw new Error("write_file requires content string");
+      }
+      if (action.content.length > 500000) {
+        throw new Error("write_file content too large (max 500KB)");
+      }
+      if (!isWritableConfigPath(target)) {
+        throw new Error(
+          `write_file target is not in the editable allow-list: ${target}. Use config/mod/plugin text configs or common server files.`
+        );
+      }
+    }
+  }
+
+  if (action.type === "delete_files") {
+    const targets = Array.isArray(action.targets)
+      ? action.targets
+      : action.target
+        ? [action.target]
+        : action.path
+          ? [action.path]
+          : action.fileName
+            ? [action.fileName]
+            : [];
+    if (targets.length === 0) throw new Error("delete_files requires targets");
+    if (targets.length > 50) throw new Error("delete_files allows at most 50 paths per action");
+    for (const item of targets) {
+      const rel = normalizeRelPath(String(item));
+      if (!rel) throw new Error("delete_files contains empty path");
+      if (isProtectedPath(rel)) {
+        throw new Error(
+          `Refusing to delete protected world/runtime path: ${rel}. Do this manually if truly needed.`
+        );
+      }
+    }
+  }
+
+  if (action.type === "download_file") {
+    const url = String(action.url || "").trim();
+    const fileName = String(action.fileName || action.target || "").trim();
+    if (!url || !fileName) throw new Error("download_file requires url and fileName/target");
+    if (!checkSafeUrl(url)) throw new Error("download_file url is invalid or unsafe");
+    normalizeRelPath(fileName);
+  }
+
+  if (action.type === "update_instance_config") {
+    if (!action.configPatch || !isRecord(action.configPatch) || Object.keys(action.configPatch).length === 0) {
+      throw new Error("update_instance_config requires configPatch object");
+    }
+    isSafeInstanceConfigPatch(action.configPatch);
   }
 }
 
@@ -293,23 +562,18 @@ function parseModelPayload(content: string): { reply: string; actions: AiPropose
 
   for (const item of rawActions) {
     if (!isRecord(item)) continue;
-    const type = readString(item.type);
-    if (
-      type !== "open" &&
-      type !== "stop" &&
-      type !== "restart" &&
-      type !== "command" &&
-      type !== "install_mod"
-    ) {
-      continue;
-    }
+    const type = readString(item.type) as AiActionType;
+    if (!ALL_ACTION_TYPES.includes(type)) continue;
+
     const action: AiProposedAction = {
       type,
       reason: readString(item.reason, "Suggested by AI")
     };
+
     if (type === "command") {
       action.command = readString(item.command).trim();
     }
+
     if (type === "install_mod") {
       action.modQuery = readString(item.modQuery).trim() || undefined;
       action.projectId = readString(item.projectId).trim() || undefined;
@@ -327,6 +591,42 @@ function parseModelPayload(content: string): { reply: string; actions: AiPropose
       action.projectName = readString(item.projectName).trim() || undefined;
       action.versionName = readString(item.versionName).trim() || undefined;
     }
+
+    if (type === "toggle_mod" || type === "delete_mod") {
+      action.fileName = readString(item.fileName).trim() || undefined;
+    }
+
+    if (
+      type === "list_files" ||
+      type === "read_file" ||
+      type === "write_file" ||
+      type === "mkdir" ||
+      type === "download_file" ||
+      type === "delete_files"
+    ) {
+      action.path = readString(item.path).trim() || undefined;
+      action.target = readString(item.target).trim() || undefined;
+      action.fileName = readString(item.fileName).trim() || undefined;
+      action.content = typeof item.content === "string" ? item.content : undefined;
+      action.url = readString(item.url).trim() || undefined;
+      if (Array.isArray(item.targets)) {
+        action.targets = item.targets.map((v) => String(v));
+      }
+      if (typeof item.page === "number") action.page = item.page;
+      if (typeof item.pageSize === "number") action.pageSize = item.pageSize;
+      if (typeof item.maxChars === "number") action.maxChars = item.maxChars;
+    }
+
+    if (type === "get_logs" || type === "list_mods") {
+      if (typeof item.page === "number") action.page = item.page;
+      if (typeof item.pageSize === "number") action.pageSize = item.pageSize;
+      if (typeof item.maxChars === "number") action.maxChars = item.maxChars;
+    }
+
+    if (type === "update_instance_config" && isRecord(item.configPatch)) {
+      action.configPatch = item.configPatch;
+    }
+
     try {
       validateAction(action, true);
       actions.push(action);
@@ -377,12 +677,14 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "",
     "# What you can do in this product",
     "You are not a generic chatbot. Prefer MCSManager-native operations.",
-    "Executable actions the UI can confirm:",
-    "- open: start instance",
-    "- stop: stop instance (sends stopCommand, often ^C / stop)",
-    "- restart: restart instance",
+    "Executable actions the UI can confirm (operator still clicks confirm):",
+    "- open / stop / restart / kill: power control of the current instance",
     "- command: send a SAFE console command to the running process stdin",
-    "- install_mod: download/install a mod or plugin into the current instance mods/plugins folder",
+    "- install_mod / toggle_mod / delete_mod / list_mods: manage mods and plugins",
+    "- list_files / read_file / write_file / mkdir / delete_files / download_file: inspect and fix instance files",
+    "- accept_eula: set eula=true for Minecraft servers",
+    "- update_instance_config: patch safe instance launch settings (startCommand/cwd/type/etc.)",
+    "- get_logs: pull latest terminal logs when more evidence is needed",
     "",
     "Safe command whitelist examples:",
     "say/broadcast, save-all/save-on/save-off, list,",
@@ -390,25 +692,26 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "op/deop, kick/ban/pardon, ban-ip/pardon-ip,",
     "tp/teleport, time, weather, difficulty, gamemode, gamerule,",
     "xp/experience, effect, give, clear, title, tellraw, scoreboard,",
-    "reload, stop, help, version, plugins/pl, paper version.",
-    "Never invent shell commands, rm, kill -9, docker privileged changes, or file deletion actions.",
+    "reload, stop, help, version, plugins/pl, paper version, spark ..., seed.",
+    "Never invent shell commands, rm, kill -9, docker privileged changes, or host-level file deletion.",
     "",
-    "install_mod action guidance:",
-    "- Use when the operator asks to install / download / add a mod or plugin for the current instance.",
-    "- Prefer proposing ONE clear candidate first. If multiple popular matches exist, explain choices in reply and only put the best candidate into actions.",
-    "- Required fields for install_mod:",
-    '  {"type":"install_mod","modQuery":"sodium","source":"Modrinth","gameVersion":"1.20.1","loader":"fabric","projectType":"mod","reason":"..."}',
-    "- Optional fields: projectId, versionId, projectName, versionName, url, fileName, fallbackUrl.",
-    "- If you know the exact projectId/source, include them. Otherwise modQuery is enough; backend will resolve the download URL safely.",
-    "- Never invent download URLs. Prefer modQuery/projectId and let the panel resolve real files from Modrinth/CurseForge/SpigotMC.",
-    "- projectType should be mod or plugin when known.",
+    "install_mod guidance:",
+    "- Prefer: {\"type\":\"install_mod\",\"modQuery\":\"sodium\",\"source\":\"Modrinth\",\"gameVersion\":\"1.20.1\",\"loader\":\"fabric\",\"projectType\":\"mod\",\"reason\":\"...\"}",
+    "- Backend resolves real download URLs from Modrinth/CurseForge/SpigotMC. Do not invent urls.",
     "",
-    "You currently CANNOT directly:",
-    "- edit files/config files",
-    "- install/update/reinstall whole game instances",
-    "- create schedules",
-    "- change Docker privileged/volume/network settings",
-    "If those are needed, explain the exact MCSManager UI path and commands the operator should use.",
+    "File ops guidance:",
+    "- Paths are relative to the instance working directory (cwd).",
+    "- For crashes: get_logs, list_files, read_file key configs (eula.txt, server.properties, latest logs, start scripts).",
+    "- For EULA issues: prefer accept_eula, or write_file eula.txt with eula=true.",
+    "- write_file is allow-listed to common configs/scripts and config/mod/plugin text files.",
+    "- delete_files refuses world/ and other protected runtime paths.",
+    "",
+    "You currently CANNOT / MUST NOT:",
+    "- delete world saves / force wipe players without explicit operator intent + manual UI",
+    "- enable docker privileged mode, mount host devices, or change host firewall",
+    "- operate the GLOBAL host shell instance",
+    "- run arbitrary host shell commands",
+    "If something is outside these actions, explain the exact MCSManager UI path.",
     "",
     "# Diagnosis playbook",
     "When analyzing failures, structure the answer as:",
@@ -443,13 +746,14 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "",
     "# Output contract (strict)",
     "Return ONLY a pure JSON object with this shape:",
-    '{"reply":"markdown text for the user","actions":[{"type":"restart","reason":"..."},{"type":"install_mod","modQuery":"sodium","source":"Modrinth","gameVersion":"1.20.1","loader":"fabric","projectType":"mod","reason":"..."}]}',
+    '{"reply":"markdown text for the user","actions":[{"type":"read_file","target":"eula.txt","reason":"..."},{"type":"accept_eula","reason":"..."},{"type":"install_mod","modQuery":"sodium","source":"Modrinth","gameVersion":"1.20.1","loader":"fabric","projectType":"mod","reason":"..."}]}',
     "Rules:",
     '- "reply" is required and must be user-facing Markdown.',
     '- "actions" must be an array. Use [] when no executable action is needed.',
-    "- action.type only: open | stop | restart | command | install_mod",
+    "- action.type only: open|stop|restart|kill|command|install_mod|toggle_mod|delete_mod|list_files|read_file|write_file|delete_files|mkdir|download_file|accept_eula|update_instance_config|get_logs|list_mods",
+    "- Prefer proposing concrete fix actions over pure advice when a supported action can solve the issue.",
     "- For command actions, command must be whitelist-safe and without shell chaining.",
-    "- For install_mod actions, provide modQuery and/or projectId. Prefer not inventing direct urls.",
+    "- For file actions, use instance-relative paths only.",
     "- Prefer raw JSON only. Do not wrap the whole response in markdown fences.",
     "- Put reasoning only into provider thinking channels if available; never dump chain-of-thought into reply.",
     extra
@@ -1269,8 +1573,10 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
   const remote = new RemoteRequest(remoteService);
   let result: unknown;
   let message = "";
+  const action = req.action;
+  const type = action.type;
 
-  if (req.action.type === "open") {
+  if (type === "open") {
     result = await remote.request("instance/open", { instanceUuids: [req.instanceUuid] });
     message = "Instance start requested";
     operationLogger.log("instance_start", {
@@ -1280,7 +1586,7 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
       instance_name: nickname
     });
-  } else if (req.action.type === "stop") {
+  } else if (type === "stop") {
     result = await remote.request("instance/stop", { instanceUuids: [req.instanceUuid] });
     message = "Instance stop requested";
     operationLogger.log("instance_stop", {
@@ -1290,7 +1596,7 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
       instance_name: nickname
     });
-  } else if (req.action.type === "restart") {
+  } else if (type === "restart") {
     result = await remote.request("instance/restart", { instanceUuids: [req.instanceUuid] });
     message = "Instance restart requested";
     operationLogger.log("instance_restart", {
@@ -1300,16 +1606,26 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
       instance_name: nickname
     });
-  } else if (req.action.type === "command") {
-    const command = String(req.action.command || "").trim();
-    validateAction({ type: "command", command, reason: req.action.reason }, true);
+  } else if (type === "kill") {
+    result = await remote.request("instance/kill", { instanceUuids: [req.instanceUuid] });
+    message = "Instance force-kill requested";
+    operationLogger.warning("instance_kill", {
+      daemon_id: req.daemonId,
+      instance_id: req.instanceUuid,
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_name: nickname
+    });
+  } else if (type === "command") {
+    const command = String(action.command || "").trim();
+    validateAction({ type: "command", command, reason: action.reason }, true);
     result = await remote.request("instance/command", {
       instanceUuid: req.instanceUuid,
       command
     });
     message = `Command sent: ${command}`;
-  } else if (req.action.type === "install_mod") {
-    const resolved = await resolveInstallModAction(req.action);
+  } else if (type === "install_mod") {
+    const resolved = await resolveInstallModAction(action);
     result = await remote.request("instance/mods/install", {
       instanceUuid: req.instanceUuid,
       url: resolved.url,
@@ -1339,12 +1655,183 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       url: resolved.url,
       fileName: resolved.fileName
     });
+  } else if (type === "toggle_mod") {
+    const fileName = normalizeRelPath(action.fileName);
+    result = await remote.request("instance/mods/toggle", {
+      instanceUuid: req.instanceUuid,
+      fileName
+    });
+    message = `Toggled mod/plugin: ${fileName}`;
+  } else if (type === "delete_mod") {
+    const fileName = normalizeRelPath(action.fileName);
+    result = await remote.request("instance/mods/delete", {
+      instanceUuid: req.instanceUuid,
+      fileName
+    });
+    message = `Deleted mod/plugin: ${fileName}`;
+  } else if (type === "list_mods") {
+    const page = Math.max(1, Number(action.page || 1));
+    const pageSize = Math.min(200, Math.max(1, Number(action.pageSize || 50)));
+    result = await remote.request("instance/mods/list", {
+      instanceUuid: req.instanceUuid,
+      page,
+      pageSize
+    });
+    message = `Listed mods/plugins (page ${page})`;
+  } else if (type === "list_files") {
+    const target = normalizeRelPath(action.path || action.target || ".");
+    const page = Math.max(1, Number(action.page || 1));
+    const pageSize = Math.min(200, Math.max(1, Number(action.pageSize || 100)));
+    result = await remote.request("file/list", {
+      instanceUuid: req.instanceUuid,
+      target: target || ".",
+      page,
+      pageSize,
+      fileName: ""
+    });
+    message = `Listed files under ${target || "."}`;
+  } else if (type === "read_file") {
+    const target = normalizeRelPath(action.target || action.path);
+    const raw = await remote.request("file/edit", {
+      instanceUuid: req.instanceUuid,
+      target,
+      text: null
+    });
+    const content = typeof raw === "string" ? raw : String(raw ?? "");
+    const maxChars = Math.min(200000, Math.max(1000, Number(action.maxChars || 30000)));
+    result = {
+      target,
+      content: clampText(content, maxChars),
+      truncated: content.length > maxChars,
+      size: content.length
+    };
+    message = `Read file ${target}`;
+  } else if (type === "write_file") {
+    const target = normalizeRelPath(action.target || action.path);
+    if (!isWritableConfigPath(target)) {
+      throw new Error(`write_file target is not editable: ${target}`);
+    }
+    result = await remote.request("file/edit", {
+      instanceUuid: req.instanceUuid,
+      target,
+      text: String(action.content ?? "")
+    });
+    message = `Wrote file ${target}`;
+    operationLogger.log("instance_file_update", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      instance_name: nickname,
+      file: target
+    });
+  } else if (type === "mkdir") {
+    const target = normalizeRelPath(action.target || action.path);
+    result = await remote.request("file/mkdir", {
+      instanceUuid: req.instanceUuid,
+      target
+    });
+    message = `Created directory ${target}`;
+  } else if (type === "delete_files") {
+    const targets = (
+      Array.isArray(action.targets)
+        ? action.targets
+        : action.target
+          ? [action.target]
+          : action.path
+            ? [action.path]
+            : action.fileName
+              ? [action.fileName]
+              : []
+    ).map((item) => normalizeRelPath(String(item)));
+    for (const rel of targets) {
+      if (isProtectedPath(rel)) {
+        throw new Error(`Refusing to delete protected path: ${rel}`);
+      }
+    }
+    result = await remote.request("file/delete", {
+      instanceUuid: req.instanceUuid,
+      targets
+    });
+    message = `Deleted ${targets.length} path(s)`;
+    operationLogger.log("instance_file_delete", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      instance_name: nickname,
+      file: targets.join(", ")
+    });
+  } else if (type === "download_file") {
+    const url = String(action.url || "").trim();
+    const fileName = normalizeRelPath(action.fileName || action.target);
+    if (!checkSafeUrl(url)) throw new Error("download_file url is invalid or unsafe");
+    result = await remote.request("file/download_from_url", {
+      instanceUuid: req.instanceUuid,
+      url,
+      fileName
+    });
+    message = `Started downloading ${fileName}`;
+    operationLogger.log("instance_file_download_from_url", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      url,
+      fileName
+    });
+  } else if (type === "accept_eula") {
+    // Force eula=true regardless of previous content.
+    result = await remote.request("file/edit", {
+      instanceUuid: req.instanceUuid,
+      target: "eula.txt",
+      text: "#Accepted by MCSManager AI assistant\neula=true\n"
+    });
+    message = "Accepted Minecraft EULA (eula.txt -> eula=true)";
+    operationLogger.log("instance_file_update", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      instance_name: nickname,
+      file: "eula.txt"
+    });
+  } else if (type === "update_instance_config") {
+    const patch = action.configPatch || {};
+    isSafeInstanceConfigPatch(patch);
+    result = await remote.request("instance/update", {
+      instanceUuid: req.instanceUuid,
+      config: patch
+    });
+    message = `Updated instance config fields: ${Object.keys(patch).join(", ")}`;
+    operationLogger.log("instance_config_change", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      instance_name: nickname
+    });
+  } else if (type === "get_logs") {
+    const rawLog = await remote.request("instance/outputlog", {
+      instanceUuid: req.instanceUuid
+    });
+    const full = typeof rawLog === "string" ? rawLog : String(rawLog ?? "");
+    const maxChars = Math.min(
+      80000,
+      Math.max(1000, Number(action.maxChars || config.maxLogChars || 12000))
+    );
+    result = {
+      content: clampText(full, maxChars),
+      truncated: full.length > maxChars,
+      size: full.length
+    };
+    message = `Fetched latest logs (${Math.min(full.length, maxChars)} chars)`;
   } else {
-    throw new Error(`Unsupported AI action type: ${req.action.type}`);
+    throw new Error(`Unsupported AI action type: ${type}`);
   }
 
   logger.info(
-    `[AI] execute type=${req.action.type} instance=${req.instanceUuid} daemon=${req.daemonId}`
+    `[AI] execute type=${type} instance=${req.instanceUuid} daemon=${req.daemonId}`
   );
 
   return { ok: true, message, result };

@@ -1,7 +1,25 @@
 import { useDefineApi } from "@/stores/useDefineApi";
 import { useAppStateStore } from "@/stores/useAppStateStore";
 
-export type AiActionType = "open" | "stop" | "restart" | "command" | "install_mod";
+export type AiActionType =
+  | "open"
+  | "stop"
+  | "restart"
+  | "kill"
+  | "command"
+  | "install_mod"
+  | "toggle_mod"
+  | "delete_mod"
+  | "list_files"
+  | "read_file"
+  | "write_file"
+  | "delete_files"
+  | "mkdir"
+  | "download_file"
+  | "accept_eula"
+  | "update_instance_config"
+  | "get_logs"
+  | "list_mods";
 export type AiChatScene = "terminal" | "mod_library";
 export type AiThinkingEffort = "off" | "low" | "medium" | "high";
 
@@ -21,6 +39,14 @@ export interface AiProposedAction {
   fallbackUrl?: string;
   projectName?: string;
   versionName?: string;
+  path?: string;
+  target?: string;
+  content?: string;
+  targets?: string[];
+  page?: number;
+  pageSize?: number;
+  configPatch?: Record<string, unknown>;
+  maxChars?: number;
 }
 
 export interface AiChatMessage {

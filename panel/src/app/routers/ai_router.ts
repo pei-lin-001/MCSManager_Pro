@@ -53,13 +53,27 @@ function parseAction(value: unknown): AiProposedAction {
     throw new Error("Invalid action payload");
   }
   const type = readString(value.type) as AiActionType;
-  if (
-    type !== "open" &&
-    type !== "stop" &&
-    type !== "restart" &&
-    type !== "command" &&
-    type !== "install_mod"
-  ) {
+  const allowed = [
+    "open",
+    "stop",
+    "restart",
+    "kill",
+    "command",
+    "install_mod",
+    "toggle_mod",
+    "delete_mod",
+    "list_files",
+    "read_file",
+    "write_file",
+    "delete_files",
+    "mkdir",
+    "download_file",
+    "accept_eula",
+    "update_instance_config",
+    "get_logs",
+    "list_mods"
+  ];
+  if (!allowed.includes(type)) {
     throw new Error("Invalid action type");
   }
   const action: AiProposedAction = {
@@ -85,6 +99,37 @@ function parseAction(value: unknown): AiProposedAction {
     action.fallbackUrl = readString(value.fallbackUrl).trim() || undefined;
     action.projectName = readString(value.projectName).trim() || undefined;
     action.versionName = readString(value.versionName).trim() || undefined;
+  }
+  if (type === "toggle_mod" || type === "delete_mod") {
+    action.fileName = readString(value.fileName).trim() || undefined;
+  }
+  if (
+    type === "list_files" ||
+    type === "read_file" ||
+    type === "write_file" ||
+    type === "mkdir" ||
+    type === "download_file" ||
+    type === "delete_files"
+  ) {
+    action.path = readString(value.path).trim() || undefined;
+    action.target = readString(value.target).trim() || undefined;
+    action.fileName = readString(value.fileName).trim() || undefined;
+    action.content = typeof value.content === "string" ? value.content : undefined;
+    action.url = readString(value.url).trim() || undefined;
+    if (Array.isArray(value.targets)) {
+      action.targets = value.targets.map((v) => String(v));
+    }
+    if (typeof value.page === "number") action.page = value.page;
+    if (typeof value.pageSize === "number") action.pageSize = value.pageSize;
+    if (typeof value.maxChars === "number") action.maxChars = value.maxChars;
+  }
+  if (type === "get_logs" || type === "list_mods") {
+    if (typeof value.page === "number") action.page = value.page;
+    if (typeof value.pageSize === "number") action.pageSize = value.pageSize;
+    if (typeof value.maxChars === "number") action.maxChars = value.maxChars;
+  }
+  if (type === "update_instance_config" && isRecord(value.configPatch)) {
+    action.configPatch = value.configPatch;
   }
   return action;
 }

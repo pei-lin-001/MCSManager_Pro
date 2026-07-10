@@ -3560,5 +3560,19 @@
   "TXT_CODE_AI_PROMPT_INSTALL_MOD": "Install Sodium for this instance",
   "TXT_CODE_AI_PROMPT_RECOMMEND_MODS": "Recommend performance mods",
   "TXT_CODE_AI_PROMPT_INSTALL_PLUGIN": "Install Spark plugin",
-  "TXT_CODE_AI_PROMPT_CHECK_LOADER": "Which loader fits this server?"
+  "TXT_CODE_AI_PROMPT_CHECK_LOADER": "Which loader fits this server?",
+  "TXT_CODE_AI_ACTION_KILL": "Force kill instance",
+  "TXT_CODE_AI_ACTION_TOGGLE_MOD": "Toggle mod/plugin",
+  "TXT_CODE_AI_ACTION_DELETE_MOD": "Delete mod/plugin",
+  "TXT_CODE_AI_ACTION_LIST_FILES": "List files",
+  "TXT_CODE_AI_ACTION_READ_FILE": "Read file",
+  "TXT_CODE_AI_ACTION_WRITE_FILE": "Write file",
+  "TXT_CODE_AI_ACTION_DELETE_FILES": "Delete files",
+  "TXT_CODE_AI_ACTION_MKDIR": "Create directory",
+  "TXT_CODE_AI_ACTION_DOWNLOAD_FILE": "Download file into instance",
+  "TXT_CODE_AI_ACTION_ACCEPT_EULA": "Accept Minecraft EULA",
+  "TXT_CODE_AI_ACTION_UPDATE_CONFIG": "Update instance config",
+  "TXT_CODE_AI_ACTION_GET_LOGS": "Fetch latest logs",
+  "TXT_CODE_AI_ACTION_LIST_MODS": "List installed mods/plugins",
+  "TXT_CODE_AI_RESULT_TRUNCATED": "Result truncated for display."
 }
