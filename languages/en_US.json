@@ -3553,5 +3553,12 @@
   "TXT_CODE_MOD_MC_VERSION": "MC version",
   "TXT_CODE_MOD_NAME": "Name",
   "TXT_CODE_MOD_SOURCE": "Source",
-  "TXT_CODE_MOD_TYPE": "Type"
+  "TXT_CODE_MOD_TYPE": "Type",
+  "TXT_CODE_AI_ACTION_INSTALL_MOD": "Install mod/plugin",
+  "TXT_CODE_AI_MOD_ASSISTANT_DESC": "Ask me to search, recommend, and install mods/plugins into the selected instance.",
+  "TXT_CODE_AI_MOD_EMPTY_HINT": "Try: install Sodium for Fabric 1.20.1, or recommend performance mods.",
+  "TXT_CODE_AI_PROMPT_INSTALL_MOD": "Install Sodium for this instance",
+  "TXT_CODE_AI_PROMPT_RECOMMEND_MODS": "Recommend performance mods",
+  "TXT_CODE_AI_PROMPT_INSTALL_PLUGIN": "Install Spark plugin",
+  "TXT_CODE_AI_PROMPT_CHECK_LOADER": "Which loader fits this server?"
 }

@@ -1,13 +1,15 @@
 import axios from "axios";
 import { PassThrough } from "stream";
 import AiConfig, { type AiThinkingEffort } from "../entity/ai_config";
+import { checkSafeUrl } from "../utils/url";
 import { getAiConfig } from "./ai_config_service";
 import { logger } from "./log";
+import { modManagerService } from "./mod_manager_service";
 import { operationLogger } from "./operation_logger";
 import RemoteRequest from "./remote_command";
 import RemoteServiceSubsystem from "./remote_service";
 
-export type AiActionType = "open" | "stop" | "restart" | "command";
+export type AiActionType = "open" | "stop" | "restart" | "command" | "install_mod";
 
 export interface AiChatMessage {
   role: "user" | "assistant" | "system";
@@ -18,7 +20,22 @@ export interface AiProposedAction {
   type: AiActionType;
   command?: string;
   reason: string;
+  // install_mod fields (resolved by backend when only query is provided)
+  modQuery?: string;
+  projectId?: string;
+  source?: string;
+  versionId?: string;
+  gameVersion?: string;
+  loader?: string;
+  projectType?: "mod" | "plugin";
+  url?: string;
+  fileName?: string;
+  fallbackUrl?: string;
+  projectName?: string;
+  versionName?: string;
 }
+
+export type AiChatScene = "terminal" | "mod_library";
 
 export interface AiChatRequest {
   daemonId: string;
@@ -28,6 +45,8 @@ export interface AiChatRequest {
   includeLog?: boolean;
   // Optional per-request override. Falls back to panel AI settings.
   thinkingEffort?: AiThinkingEffort;
+  // Page context: terminal diagnosis vs mod library assistant.
+  scene?: AiChatScene;
   operatorName?: string;
   operatorIp?: string;
 }
@@ -190,7 +209,7 @@ function validateAction(action: AiProposedAction, allowActions: boolean): void {
   if (!action || typeof action.type !== "string") {
     throw new Error("Invalid AI action");
   }
-  if (!["open", "stop", "restart", "command"].includes(action.type)) {
+  if (!["open", "stop", "restart", "command", "install_mod"].includes(action.type)) {
     throw new Error(`Unsupported AI action type: ${action.type}`);
   }
   if (action.type === "command") {
@@ -202,6 +221,26 @@ function validateAction(action: AiProposedAction, allowActions: boolean): void {
       throw new Error(
         `Command is not in the safe whitelist: ${command}. Only common Minecraft/server console commands are allowed.`
       );
+    }
+  }
+  if (action.type === "install_mod") {
+    const hasResolved = Boolean(action.url && action.fileName);
+    const hasLookup =
+      Boolean(action.modQuery && action.modQuery.trim()) ||
+      Boolean(action.projectId && action.projectId.trim());
+    if (!hasResolved && !hasLookup) {
+      throw new Error(
+        "install_mod requires either a resolved url+fileName, or a modQuery/projectId to look up"
+      );
+    }
+    if (action.url && !checkSafeUrl(action.url)) {
+      throw new Error("install_mod url is invalid or unsafe");
+    }
+    if (action.fallbackUrl && !checkSafeUrl(action.fallbackUrl)) {
+      throw new Error("install_mod fallbackUrl is invalid or unsafe");
+    }
+    if (action.projectType && action.projectType !== "mod" && action.projectType !== "plugin") {
+      throw new Error("install_mod projectType must be mod or plugin");
     }
   }
 }
@@ -255,13 +294,38 @@ function parseModelPayload(content: string): { reply: string; actions: AiPropose
   for (const item of rawActions) {
     if (!isRecord(item)) continue;
     const type = readString(item.type);
-    if (type !== "open" && type !== "stop" && type !== "restart" && type !== "command") continue;
+    if (
+      type !== "open" &&
+      type !== "stop" &&
+      type !== "restart" &&
+      type !== "command" &&
+      type !== "install_mod"
+    ) {
+      continue;
+    }
     const action: AiProposedAction = {
       type,
       reason: readString(item.reason, "Suggested by AI")
     };
     if (type === "command") {
       action.command = readString(item.command).trim();
+    }
+    if (type === "install_mod") {
+      action.modQuery = readString(item.modQuery).trim() || undefined;
+      action.projectId = readString(item.projectId).trim() || undefined;
+      action.source = readString(item.source).trim() || undefined;
+      action.versionId = readString(item.versionId).trim() || undefined;
+      action.gameVersion = readString(item.gameVersion).trim() || undefined;
+      action.loader = readString(item.loader).trim() || undefined;
+      const projectType = readString(item.projectType).trim().toLowerCase();
+      if (projectType === "mod" || projectType === "plugin") {
+        action.projectType = projectType;
+      }
+      action.url = readString(item.url).trim() || undefined;
+      action.fileName = readString(item.fileName).trim() || undefined;
+      action.fallbackUrl = readString(item.fallbackUrl).trim() || undefined;
+      action.projectName = readString(item.projectName).trim() || undefined;
+      action.versionName = readString(item.versionName).trim() || undefined;
     }
     try {
       validateAction(action, true);
@@ -291,7 +355,7 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "This is a personal server environment for the operator and friends, not a commercial multi-tenant product.",
     "",
     "# MCSManager architecture you must understand",
-    "- frontend: Vue web UI. The operator chats with you from the instance terminal page.",
+    "- frontend: Vue web UI. The operator may chat with you from the instance terminal page or the Mod Library page.",
     "- panel: control plane (users, permissions, APIs, AI orchestration). You run here.",
     "- daemon: worker node that really starts/stops processes, Docker containers, files, and terminal I/O.",
     "- One panel can manage multiple daemons (nodes). Every instance is identified by daemonId + instanceUuid.",
@@ -318,6 +382,7 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "- stop: stop instance (sends stopCommand, often ^C / stop)",
     "- restart: restart instance",
     "- command: send a SAFE console command to the running process stdin",
+    "- install_mod: download/install a mod or plugin into the current instance mods/plugins folder",
     "",
     "Safe command whitelist examples:",
     "say/broadcast, save-all/save-on/save-off, list,",
@@ -328,10 +393,19 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "reload, stop, help, version, plugins/pl, paper version.",
     "Never invent shell commands, rm, kill -9, docker privileged changes, or file deletion actions.",
     "",
+    "install_mod action guidance:",
+    "- Use when the operator asks to install / download / add a mod or plugin for the current instance.",
+    "- Prefer proposing ONE clear candidate first. If multiple popular matches exist, explain choices in reply and only put the best candidate into actions.",
+    "- Required fields for install_mod:",
+    '  {"type":"install_mod","modQuery":"sodium","source":"Modrinth","gameVersion":"1.20.1","loader":"fabric","projectType":"mod","reason":"..."}',
+    "- Optional fields: projectId, versionId, projectName, versionName, url, fileName, fallbackUrl.",
+    "- If you know the exact projectId/source, include them. Otherwise modQuery is enough; backend will resolve the download URL safely.",
+    "- Never invent download URLs. Prefer modQuery/projectId and let the panel resolve real files from Modrinth/CurseForge/SpigotMC.",
+    "- projectType should be mod or plugin when known.",
+    "",
     "You currently CANNOT directly:",
     "- edit files/config files",
-    "- install/update/reinstall instances",
-    "- manage mods marketplace downloads",
+    "- install/update/reinstall whole game instances",
     "- create schedules",
     "- change Docker privileged/volume/network settings",
     "If those are needed, explain the exact MCSManager UI path and commands the operator should use.",
@@ -369,12 +443,13 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "",
     "# Output contract (strict)",
     "Return ONLY a pure JSON object with this shape:",
-    '{"reply":"markdown text for the user","actions":[{"type":"restart","reason":"..."},{"type":"command","command":"say hello","reason":"..."}]}',
+    '{"reply":"markdown text for the user","actions":[{"type":"restart","reason":"..."},{"type":"install_mod","modQuery":"sodium","source":"Modrinth","gameVersion":"1.20.1","loader":"fabric","projectType":"mod","reason":"..."}]}',
     "Rules:",
     '- "reply" is required and must be user-facing Markdown.',
     '- "actions" must be an array. Use [] when no executable action is needed.',
-    "- action.type only: open | stop | restart | command",
+    "- action.type only: open | stop | restart | command | install_mod",
     "- For command actions, command must be whitelist-safe and without shell chaining.",
+    "- For install_mod actions, provide modQuery and/or projectId. Prefer not inventing direct urls.",
     "- Prefer raw JSON only. Do not wrap the whole response in markdown fences.",
     "- Put reasoning only into provider thinking channels if available; never dump chain-of-thought into reply.",
     extra
@@ -786,8 +861,25 @@ async function prepareChat(
   );
 
   const history = Array.isArray(req.history) ? req.history.slice(-12) : [];
+  const scene = req.scene === "mod_library" ? "mod_library" : "terminal";
+  const sceneHint =
+    scene === "mod_library"
+      ? [
+          "Current UI scene: Mod Library page.",
+          "Prioritize searching / recommending / installing mods and plugins for the selected instance.",
+          "When the operator asks to install something, prefer proposing install_mod actions.",
+          "Include gameVersion/loader/projectType when you can infer them from context or the question.",
+          "Do not propose open/stop/restart unless the operator explicitly asks for server power control."
+        ].join("\n")
+      : [
+          "Current UI scene: Instance terminal page.",
+          "Prioritize diagnosis, logs, start/stop/restart and safe console commands.",
+          "You may still propose install_mod if the operator clearly asks to install a mod/plugin."
+        ].join("\n");
+
   const messages: AiChatMessage[] = [
     { role: "system", content: buildSystemPrompt(config, thinkingEffort) },
+    { role: "system", content: sceneHint },
     ...history.filter(
       (item) =>
         item &&
@@ -950,6 +1042,209 @@ export function createSseStream(): {
   return { stream, writeEvent, end };
 }
 
+
+function normalizeSource(source?: string): string {
+  const s = String(source || "").trim().toLowerCase();
+  if (!s || s === "all") return "all";
+  if (s.includes("curse")) return "CurseForge";
+  if (s.includes("spigot")) return "SpigotMC";
+  if (s.includes("modrinth")) return "Modrinth";
+  return source || "Modrinth";
+}
+
+function pickPrimaryFile(version: Record<string, unknown>): {
+  url: string;
+  fileName: string;
+  fallbackUrl?: string;
+} | null {
+  const files = Array.isArray(version.files) ? version.files : [];
+  const records = files.filter(isRecord) as Record<string, unknown>[];
+  if (records.length === 0) return null;
+  const primary =
+    records.find((f) => f.primary === true) ||
+    records.find((f) => readString(f.url)) ||
+    records[0];
+  const url = readString(primary.url).trim();
+  if (!url) return null;
+  const fileName =
+    readString(primary.filename).trim() ||
+    readString(primary.name).trim() ||
+    url.split("/").pop() ||
+    "mod.jar";
+  const fallback = records.find((f) => {
+    const u = readString(f.url).trim();
+    return u && u !== url;
+  });
+  return {
+    url,
+    fileName,
+    fallbackUrl: fallback ? readString(fallback.url).trim() || undefined : undefined
+  };
+}
+
+function detectProjectType(
+  version: Record<string, unknown>,
+  preferred?: string
+): "mod" | "plugin" {
+  if (preferred === "mod" || preferred === "plugin") return preferred;
+  const raw = readString(version.project_type).toLowerCase();
+  if (raw === "plugin") return "plugin";
+  if (raw === "mod") return "mod";
+  const loaders = Array.isArray(version.loaders)
+    ? version.loaders.map((l) => String(l).toLowerCase())
+    : [];
+  const pluginLoaders = [
+    "spigot",
+    "paper",
+    "purpur",
+    "folia",
+    "bungeecord",
+    "velocity",
+    "waterfall"
+  ];
+  if (loaders.some((l) => pluginLoaders.includes(l))) return "plugin";
+  return "mod";
+}
+
+function scoreVersion(
+  version: Record<string, unknown>,
+  gameVersion?: string,
+  loader?: string
+): number {
+  let score = 0;
+  const versions = Array.isArray(version.game_versions)
+    ? version.game_versions.map((v) => String(v))
+    : [];
+  const loaders = Array.isArray(version.loaders)
+    ? version.loaders.map((l) => String(l).toLowerCase())
+    : [];
+  if (gameVersion && versions.includes(gameVersion)) score += 4;
+  if (loader && loaders.includes(loader.toLowerCase())) score += 3;
+  if (readString(version.version_type).toLowerCase() === "release") score += 1;
+  return score;
+}
+
+async function resolveInstallModAction(
+  action: AiProposedAction
+): Promise<{
+  url: string;
+  fileName: string;
+  projectType: "mod" | "plugin";
+  fallbackUrl?: string;
+  projectId?: string;
+  source?: string;
+  projectName?: string;
+  versionName?: string;
+  versionId?: string;
+}> {
+  // Already resolved by model or previous UI step.
+  if (action.url && action.fileName) {
+    if (!checkSafeUrl(action.url)) {
+      throw new Error("install_mod url is invalid or unsafe");
+    }
+    if (action.fallbackUrl && !checkSafeUrl(action.fallbackUrl)) {
+      throw new Error("install_mod fallbackUrl is invalid or unsafe");
+    }
+    return {
+      url: action.url,
+      fileName: action.fileName,
+      projectType: action.projectType === "plugin" ? "plugin" : "mod",
+      fallbackUrl: action.fallbackUrl,
+      projectId: action.projectId,
+      source: action.source,
+      projectName: action.projectName,
+      versionName: action.versionName,
+      versionId: action.versionId
+    };
+  }
+
+  const query = (action.modQuery || action.projectName || "").trim();
+  let projectId = (action.projectId || "").trim();
+  let source = normalizeSource(action.source);
+  let projectName = action.projectName || query || projectId;
+  let projectTypeHint = action.projectType;
+
+  if (!projectId) {
+    if (!query) {
+      throw new Error("install_mod needs modQuery or projectId");
+    }
+    const search = await modManagerService.searchProjects(query, 0, 8, {
+      source: source === "all" ? "all" : source.toLowerCase(),
+      version: action.gameVersion || "",
+      type: projectTypeHint || "all",
+      loader: action.loader || "all",
+      environment: "all"
+    });
+    const hits = Array.isArray(search?.hits) ? search.hits : [];
+    if (hits.length === 0) {
+      throw new Error(`No mod/plugin found for query: ${query}`);
+    }
+    const first = hits[0] as Record<string, unknown>;
+    projectId = readString(first.id).trim();
+    source = normalizeSource(readString(first.source, source));
+    projectName = readString(first.title, readString(first.name, projectName));
+    const pt = readString(first.project_type).toLowerCase();
+    if (pt === "mod" || pt === "plugin") projectTypeHint = pt;
+    if (!projectId) {
+      throw new Error(`Search result missing project id for query: ${query}`);
+    }
+  }
+
+  const versionsRaw = await modManagerService.getProjectVersions(
+    projectId,
+    source === "all" ? "Modrinth" : source
+  );
+  const versions = Array.isArray(versionsRaw)
+    ? (versionsRaw.filter(isRecord) as Record<string, unknown>[])
+    : [];
+  if (versions.length === 0) {
+    throw new Error(`No versions found for project ${projectName || projectId}`);
+  }
+
+  let chosen: Record<string, unknown> | undefined;
+  if (action.versionId) {
+    chosen = versions.find((v) => readString(v.id) === action.versionId);
+  }
+  if (!chosen) {
+    const ranked = [...versions].sort(
+      (a, b) =>
+        scoreVersion(b, action.gameVersion, action.loader) -
+        scoreVersion(a, action.gameVersion, action.loader)
+    );
+    chosen = ranked[0];
+  }
+  if (!chosen) {
+    throw new Error(`Unable to select a version for ${projectName || projectId}`);
+  }
+
+  const file = pickPrimaryFile(chosen);
+  if (!file) {
+    throw new Error(`Selected version has no downloadable file for ${projectName || projectId}`);
+  }
+  if (!checkSafeUrl(file.url)) {
+    throw new Error("Resolved download url is invalid or unsafe");
+  }
+  if (file.fallbackUrl && !checkSafeUrl(file.fallbackUrl)) {
+    file.fallbackUrl = undefined;
+  }
+
+  return {
+    url: file.url,
+    fileName: file.fileName,
+    projectType: detectProjectType(chosen, projectTypeHint),
+    fallbackUrl: file.fallbackUrl,
+    projectId,
+    source: source === "all" ? "Modrinth" : source,
+    projectName,
+    versionName:
+      readString(chosen.name) ||
+      readString(chosen.version_number) ||
+      action.versionName ||
+      undefined,
+    versionId: readString(chosen.id) || action.versionId
+  };
+}
+
 export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteResponse> {
   const config = getAiConfig();
   if (!config.enabled) {
@@ -1005,7 +1300,7 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
       instance_name: nickname
     });
-  } else {
+  } else if (req.action.type === "command") {
     const command = String(req.action.command || "").trim();
     validateAction({ type: "command", command, reason: req.action.reason }, true);
     result = await remote.request("instance/command", {
@@ -1013,6 +1308,39 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
       command
     });
     message = `Command sent: ${command}`;
+  } else if (req.action.type === "install_mod") {
+    const resolved = await resolveInstallModAction(req.action);
+    result = await remote.request("instance/mods/install", {
+      instanceUuid: req.instanceUuid,
+      url: resolved.url,
+      fileName: resolved.fileName,
+      type: resolved.projectType,
+      fallbackUrl: resolved.fallbackUrl,
+      extraInfo: {
+        project: {
+          id: resolved.projectId,
+          name: resolved.projectName
+        },
+        version: {
+          id: resolved.versionId,
+          name: resolved.versionName
+        },
+        source: resolved.source,
+        via: "ai_assistant"
+      }
+    });
+    const label = resolved.projectName || resolved.fileName;
+    message = `Started installing ${label} (${resolved.projectType}) into the instance`;
+    operationLogger.log("instance_file_download_from_url", {
+      operator_ip: req.operatorIp || "",
+      operator_name: req.operatorName ? `AI:${req.operatorName}` : "AI",
+      instance_id: req.instanceUuid,
+      daemon_id: req.daemonId,
+      url: resolved.url,
+      fileName: resolved.fileName
+    });
+  } else {
+    throw new Error(`Unsupported AI action type: ${req.action.type}`);
   }
 
   logger.info(

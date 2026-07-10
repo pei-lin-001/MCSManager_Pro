@@ -3553,5 +3553,12 @@
   "TXT_CODE_MOD_MC_VERSION": "MC 版本",
   "TXT_CODE_MOD_NAME": "名称",
   "TXT_CODE_MOD_SOURCE": "来源",
-  "TXT_CODE_MOD_TYPE": "类型"
+  "TXT_CODE_MOD_TYPE": "类型",
+  "TXT_CODE_AI_ACTION_INSTALL_MOD": "安装模组/插件",
+  "TXT_CODE_AI_MOD_ASSISTANT_DESC": "可以让我帮你搜索、推荐，并把模组/插件安装到当前选中的实例。",
+  "TXT_CODE_AI_MOD_EMPTY_HINT": "试试：给当前实例安装 Sodium，或推荐一组性能优化模组。",
+  "TXT_CODE_AI_PROMPT_INSTALL_MOD": "给当前实例安装 Sodium",
+  "TXT_CODE_AI_PROMPT_RECOMMEND_MODS": "推荐性能优化模组",
+  "TXT_CODE_AI_PROMPT_INSTALL_PLUGIN": "安装 Spark 插件",
+  "TXT_CODE_AI_PROMPT_CHECK_LOADER": "这个服适合什么加载器？"
 }

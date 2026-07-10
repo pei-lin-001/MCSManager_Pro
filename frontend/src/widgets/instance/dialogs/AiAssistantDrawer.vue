@@ -5,6 +5,7 @@ import {
   aiStatusApi,
   streamAiChat,
   type AiChatMessage,
+  type AiChatScene,
   type AiProposedAction,
   type AiStatus,
   type AiThinkingEffort
@@ -22,12 +23,20 @@ import {
 import { message } from "ant-design-vue";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
-const props = defineProps<{
-  open: boolean;
-  instanceId: string;
-  daemonId: string;
-  instanceName?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    instanceId: string;
+    daemonId: string;
+    instanceName?: string;
+    scene?: AiChatScene;
+    hideIncludeLog?: boolean;
+  }>(),
+  {
+    scene: "terminal",
+    hideIncludeLog: false
+  }
+);
 
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
@@ -43,7 +52,7 @@ interface ChatItem {
 }
 
 const inputText = ref("");
-const includeLog = ref(true);
+const includeLog = ref(props.scene !== "mod_library");
 const messages = ref<ChatItem[]>([]);
 const status = ref<AiStatus | null>(null);
 const listRef = ref<HTMLElement | null>(null);
@@ -78,12 +87,22 @@ const thinkingOptions = computed(() => [
   { label: t("TXT_CODE_AI_THINKING_HIGH"), value: "high" as const }
 ]);
 
-const quickPrompts = computed(() => [
-  t("TXT_CODE_AI_PROMPT_DIAGNOSE"),
-  t("TXT_CODE_AI_PROMPT_WHY_OFFLINE"),
-  t("TXT_CODE_AI_PROMPT_RESTART_SAFE"),
-  t("TXT_CODE_AI_PROMPT_ANNOUNCE")
-]);
+const quickPrompts = computed(() => {
+  if (props.scene === "mod_library") {
+    return [
+      t("TXT_CODE_AI_PROMPT_INSTALL_MOD"),
+      t("TXT_CODE_AI_PROMPT_RECOMMEND_MODS"),
+      t("TXT_CODE_AI_PROMPT_INSTALL_PLUGIN"),
+      t("TXT_CODE_AI_PROMPT_CHECK_LOADER")
+    ];
+  }
+  return [
+    t("TXT_CODE_AI_PROMPT_DIAGNOSE"),
+    t("TXT_CODE_AI_PROMPT_WHY_OFFLINE"),
+    t("TXT_CODE_AI_PROMPT_RESTART_SAFE"),
+    t("TXT_CODE_AI_PROMPT_ANNOUNCE")
+  ];
+});
 
 const loadStatus = async () => {
   try {
@@ -164,6 +183,12 @@ const actionLabel = (action: AiProposedAction): string => {
   if (action.type === "open") return t("TXT_CODE_AI_ACTION_OPEN");
   if (action.type === "stop") return t("TXT_CODE_AI_ACTION_STOP");
   if (action.type === "restart") return t("TXT_CODE_AI_ACTION_RESTART");
+  if (action.type === "install_mod") {
+    const name = action.projectName || action.modQuery || action.fileName || action.projectId || "";
+    return name
+      ? `${t("TXT_CODE_AI_ACTION_INSTALL_MOD")}: ${name}`
+      : t("TXT_CODE_AI_ACTION_INSTALL_MOD");
+  }
   return `${t("TXT_CODE_AI_ACTION_COMMAND")}: ${action.command || ""}`;
 };
 
@@ -219,8 +244,9 @@ const sendMessage = async (preset?: string) => {
       instanceUuid: props.instanceId,
       message: text,
       history,
-      includeLog: includeLog.value,
+      includeLog: props.scene === "mod_library" ? false : includeLog.value,
       thinkingEffort: thinkingEffort.value,
+      scene: props.scene,
       signal: abortController.signal,
       onEvent: (event) => {
         const current = messages.value[assistantIndex];
@@ -285,7 +311,7 @@ const sendMessage = async (preset?: string) => {
 
 const confirmAction = async (action: AiProposedAction, index: number) => {
   if (!props.instanceId || !props.daemonId) return;
-  const key = `${index}-${action.type}-${action.command || ""}`;
+  const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}`;
   executingKey.value = key;
   try {
     const res = await requestExecute({
@@ -357,7 +383,11 @@ onUnmounted(() => {
         <span>{{ instanceName || t("TXT_CODE_AI_CURRENT_INSTANCE") }}</span>
       </div>
       <a-typography-text type="secondary" class="ai-desc">
-        {{ t("TXT_CODE_AI_ASSISTANT_DESC") }}
+        {{
+          scene === "mod_library"
+            ? t("TXT_CODE_AI_MOD_ASSISTANT_DESC")
+            : t("TXT_CODE_AI_ASSISTANT_DESC")
+        }}
       </a-typography-text>
 
       <a-alert
@@ -394,7 +424,13 @@ onUnmounted(() => {
     <div ref="listRef" class="chat-list">
       <div v-if="messages.length === 0" class="empty-tip">
         <AlertOutlined class="mb-8" />
-        <div>{{ t("TXT_CODE_AI_EMPTY_HINT") }}</div>
+        <div>
+          {{
+            scene === "mod_library"
+              ? t("TXT_CODE_AI_MOD_EMPTY_HINT")
+              : t("TXT_CODE_AI_EMPTY_HINT")
+          }}
+        </div>
       </div>
 
       <div
@@ -443,7 +479,7 @@ onUnmounted(() => {
           <div v-if="item.actions && item.actions.length > 0" class="action-list">
             <div
               v-for="(action, actionIndex) in item.actions"
-              :key="`${action.type}-${action.command || ''}-${actionIndex}`"
+              :key="`${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${actionIndex}`"
               class="action-card"
             >
               <div class="action-title">{{ actionLabel(action) }}</div>
@@ -454,7 +490,8 @@ onUnmounted(() => {
                 class="mt-8"
                 :loading="
                   executeLoading &&
-                  executingKey === `${index}-${action.type}-${action.command || ''}`
+                  executingKey ===
+                    `${index}-${action.type}-${action.command || ''}-${action.modQuery || ''}-${action.projectId || ''}-${action.versionId || ''}`
                 "
                 @click="confirmAction(action, index)"
               >
@@ -470,7 +507,7 @@ onUnmounted(() => {
     <div class="composer">
       <div class="composer-tools mb-8">
         <a-space wrap>
-          <a-checkbox v-model:checked="includeLog">
+          <a-checkbox v-if="!hideIncludeLog && scene !== 'mod_library'" v-model:checked="includeLog">
             {{ t("TXT_CODE_AI_INCLUDE_LOG") }}
           </a-checkbox>
           <a-select

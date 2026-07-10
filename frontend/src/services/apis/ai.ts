@@ -1,13 +1,26 @@
 import { useDefineApi } from "@/stores/useDefineApi";
 import { useAppStateStore } from "@/stores/useAppStateStore";
 
-export type AiActionType = "open" | "stop" | "restart" | "command";
+export type AiActionType = "open" | "stop" | "restart" | "command" | "install_mod";
+export type AiChatScene = "terminal" | "mod_library";
 export type AiThinkingEffort = "off" | "low" | "medium" | "high";
 
 export interface AiProposedAction {
   type: AiActionType;
   command?: string;
   reason: string;
+  modQuery?: string;
+  projectId?: string;
+  source?: string;
+  versionId?: string;
+  gameVersion?: string;
+  loader?: string;
+  projectType?: "mod" | "plugin";
+  url?: string;
+  fileName?: string;
+  fallbackUrl?: string;
+  projectName?: string;
+  versionName?: string;
 }
 
 export interface AiChatMessage {
@@ -127,6 +140,7 @@ export const aiChatApi = useDefineApi<
       history?: AiChatMessage[];
       includeLog?: boolean;
       thinkingEffort?: AiThinkingEffort;
+      scene?: AiChatScene;
     };
   },
   AiChatResponse
@@ -175,6 +189,7 @@ export async function streamAiChat(options: {
   history?: AiChatMessage[];
   includeLog?: boolean;
   thinkingEffort?: AiThinkingEffort;
+  scene?: AiChatScene;
   signal?: AbortSignal;
   onEvent: (event: AiStreamEvent) => void;
 }): Promise<void> {
@@ -195,7 +210,8 @@ export async function streamAiChat(options: {
       message: options.message,
       history: options.history || [],
       includeLog: options.includeLog !== false,
-      thinkingEffort: options.thinkingEffort
+      thinkingEffort: options.thinkingEffort,
+      scene: options.scene
     }),
     signal: options.signal,
     credentials: "include"

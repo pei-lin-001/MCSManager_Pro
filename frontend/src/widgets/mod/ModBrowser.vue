@@ -15,10 +15,12 @@ import {
   AppstoreOutlined,
   CloudDownloadOutlined,
   ReloadOutlined,
+  RobotOutlined,
   SearchOutlined
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { computed, onMounted, ref } from "vue";
+import AiAssistantDrawer from "@/widgets/instance/dialogs/AiAssistantDrawer.vue";
 import ModVersionModal from "@/widgets/instance/mod-manager/ModVersionModal.vue";
 
 defineProps<{
@@ -59,6 +61,10 @@ const versionsLoading = ref(false);
 const showVersionModal = ref(false);
 const targetFolders = ref<string[]>([]);
 const installedMods = ref<Array<{ file?: string; extraInfo?: { project?: { id?: string } } }>>([]);
+const aiDrawerOpen = ref(false);
+
+
+
 
 const sourceOptions = [
   { label: t("TXT_CODE_MOD_SOURCE_ALL"), value: "all" },
@@ -147,6 +153,16 @@ const selectTargetInstance = async () => {
     reportErrorMsg(error);
   }
 };
+
+const openAiAssistant = async () => {
+  if (!selectedInstance.value) {
+    message.warning(t("TXT_CODE_MOD_BROWSER_NEED_INSTANCE"));
+    await selectTargetInstance();
+    if (!selectedInstance.value) return;
+  }
+  aiDrawerOpen.value = true;
+};
+
 
 const onSearch = async (nextPage = 1) => {
   loading.value = true;
@@ -324,9 +340,15 @@ onMounted(async () => {
                   }}
                 </span>
               </div>
-              <a-button type="primary" ghost @click="selectTargetInstance">
-                {{ t("TXT_CODE_MOD_BROWSER_SELECT_INSTANCE") }}
-              </a-button>
+              <div class="target-actions">
+                <a-button type="primary" ghost @click="selectTargetInstance">
+                  {{ t("TXT_CODE_MOD_BROWSER_SELECT_INSTANCE") }}
+                </a-button>
+                <a-button type="primary" @click="openAiAssistant">
+                  <RobotOutlined />
+                  {{ t("TXT_CODE_AI_ASSISTANT_TITLE") }}
+                </a-button>
+              </div>
             </div>
           </div>
 
@@ -433,6 +455,16 @@ onMounted(async () => {
       :mods="installedMods"
       @download="onDownloadVersion"
     />
+
+    <AiAssistantDrawer
+      v-if="selectedInstance"
+      v-model:open="aiDrawerOpen"
+      :instance-id="selectedInstance.instanceUuid"
+      :daemon-id="selectedInstance.daemonId"
+      :instance-name="selectedInstance.nickname || selectedInstance.instanceUuid"
+      scene="mod_library"
+      :hide-include-log="true"
+    />
   </div>
 </template>
 
@@ -479,6 +511,13 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--color-gray-11);
   min-width: 0;
+}
+
+.target-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .filters {

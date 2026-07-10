@@ -53,7 +53,13 @@ function parseAction(value: unknown): AiProposedAction {
     throw new Error("Invalid action payload");
   }
   const type = readString(value.type) as AiActionType;
-  if (type !== "open" && type !== "stop" && type !== "restart" && type !== "command") {
+  if (
+    type !== "open" &&
+    type !== "stop" &&
+    type !== "restart" &&
+    type !== "command" &&
+    type !== "install_mod"
+  ) {
     throw new Error("Invalid action type");
   }
   const action: AiProposedAction = {
@@ -62,6 +68,23 @@ function parseAction(value: unknown): AiProposedAction {
   };
   if (type === "command") {
     action.command = readString(value.command).trim();
+  }
+  if (type === "install_mod") {
+    action.modQuery = readString(value.modQuery).trim() || undefined;
+    action.projectId = readString(value.projectId).trim() || undefined;
+    action.source = readString(value.source).trim() || undefined;
+    action.versionId = readString(value.versionId).trim() || undefined;
+    action.gameVersion = readString(value.gameVersion).trim() || undefined;
+    action.loader = readString(value.loader).trim() || undefined;
+    const projectType = readString(value.projectType).trim().toLowerCase();
+    if (projectType === "mod" || projectType === "plugin") {
+      action.projectType = projectType;
+    }
+    action.url = readString(value.url).trim() || undefined;
+    action.fileName = readString(value.fileName).trim() || undefined;
+    action.fallbackUrl = readString(value.fallbackUrl).trim() || undefined;
+    action.projectName = readString(value.projectName).trim() || undefined;
+    action.versionName = readString(value.versionName).trim() || undefined;
   }
   return action;
 }
@@ -84,6 +107,7 @@ function parseChatBody(body: unknown): {
   history: AiChatMessage[];
   includeLog: boolean;
   thinkingEffort?: AiThinkingEffort;
+  scene?: "terminal" | "mod_library";
 } {
   if (!isRecord(body)) {
     throw new Error("Invalid request body");
@@ -100,13 +124,16 @@ function parseChatBody(body: unknown): {
   if (message.length > 4000) {
     throw new Error("Message is too long");
   }
+  const sceneRaw = readString(body.scene).trim();
+  const scene = sceneRaw === "mod_library" ? "mod_library" : sceneRaw === "terminal" ? "terminal" : undefined;
   return {
     daemonId,
     instanceUuid,
     message,
     history: parseHistory(body.history),
     includeLog: body.includeLog !== false,
-    thinkingEffort: parseThinkingEffort(body.thinkingEffort)
+    thinkingEffort: parseThinkingEffort(body.thinkingEffort),
+    scene
   };
 }
 
@@ -192,6 +219,7 @@ router.post(
       history: parsed.history,
       includeLog: parsed.includeLog,
       thinkingEffort: parsed.thinkingEffort,
+      scene: parsed.scene,
       operatorName: ctx.session?.["userName"],
       operatorIp: ctx.ip
     });
