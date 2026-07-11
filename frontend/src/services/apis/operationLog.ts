@@ -3,7 +3,7 @@ import type { OperationLoggerItem } from "@/types/operationLog";
 
 export const getOperationLog = useDefineApi<
   {
-    data: {
+    params?: {
       limit?: number;
     };
   },

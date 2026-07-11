@@ -144,10 +144,19 @@ export const useOperationLog = () => {
     unknown: "gray"
   };
 
+  // Overview "recent sensitive ops" should stay bounded.
+  // Page growth is fixed by card height constraints; limit keeps the list scannable.
+  const RECENT_LOG_LIMIT = 30;
+
   const fetchData = async () => {
     const { execute } = getOperationLog();
-    const data = await execute();
-    logs.value = data.value?.reverse() || [];
+    const data = await execute({
+      params: {
+        limit: RECENT_LOG_LIMIT
+      }
+    });
+    // API returns oldest→newest tail; reverse so newest appears first in the card.
+    logs.value = data.value?.slice().reverse() || [];
   };
 
   const generateTextByItem = (item: OperationLoggerItem) => {

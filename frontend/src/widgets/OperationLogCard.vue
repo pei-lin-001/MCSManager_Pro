@@ -4,13 +4,22 @@ import { t } from "@/lang/i18n";
 import type { LayoutCard } from "@/types";
 import { useOperationLog } from "@/hooks/useOperationLog";
 import dayjs from "dayjs";
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 
 const { fetchData, formattedLogs } = useOperationLog();
 
-defineProps<{
+const props = defineProps<{
   card: LayoutCard;
 }>();
+
+// Only this card self-limits height. Do NOT change global layout constraints.
+const cardStyle = computed(() => {
+  const h = props.card?.height;
+  if (!h || h === "unset") {
+    return { height: "400px", maxHeight: "400px" };
+  }
+  return { height: h, maxHeight: h };
+});
 
 onMounted(() => {
   fetchData();
@@ -18,7 +27,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <card-panel class="OperationLogCard">
+  <card-panel class="OperationLogCard" :style="cardStyle">
     <template #title>{{ card.title }}</template>
     <template #body>
       <div v-if="formattedLogs.length" class="log-list">
@@ -57,11 +66,16 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .OperationLogCard {
-  height: 100%;
+  // Self-contained height clamp — only for this sensitive-ops card.
+  min-height: 0;
+  overflow: hidden;
 
   :deep(.card-panel-content) {
-    height: calc(100% - 28px);
+    flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 }
 
@@ -69,8 +83,11 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
   height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   padding-right: 2px;
 }
 
