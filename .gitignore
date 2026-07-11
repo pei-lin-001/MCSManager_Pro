@@ -125,3 +125,8 @@ src/public/1.png
 */.idea/*
 
 .turbo
+
+# Local Gradle caches under tools
+tools/**/.gradle/
+tools/**/build/
+.omp/
