@@ -150,7 +150,9 @@ export default class DockerStatsTask implements ILifeCycleTask {
         networkStatsSource,
         memoryUsagePercent,
         memoryUsage,
-        memoryLimit: stats.memory_stats.limit
+        memoryLimit: stats.memory_stats.limit,
+        processPid: Number(containerId) || undefined,
+        startedAt: instance.startTimestamp || undefined
       };
 
       instance.info = { ...instance.info, ...result };
@@ -186,7 +188,11 @@ export default class DockerStatsTask implements ILifeCycleTask {
       txRate: undefined,
       networkInterfaces: undefined,
       networkStatsSource: undefined,
+      memoryUsage: undefined,
+      memoryLimit: undefined,
       memoryUsagePercent: undefined,
+      processPid: undefined,
+      startedAt: undefined,
       readBytes: undefined,
       writeBytes: undefined,
       storageUsage: 0,
