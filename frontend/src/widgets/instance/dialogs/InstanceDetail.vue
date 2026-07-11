@@ -65,6 +65,8 @@ enum TabSettings {
   // eslint-disable-next-line no-unused-vars
   Advanced,
   // eslint-disable-next-line no-unused-vars
+  Tunnel,
+  // eslint-disable-next-line no-unused-vars
   ResLimit
 }
 const activeKey = ref<TabSettings>(TabSettings.Basic);
@@ -1031,6 +1033,77 @@ defineExpose({
                     :placeholder="t('TXT_CODE_9aa83c05')"
                     :disabled="isGlobalTerminal"
                   />
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </a-tab-pane>
+
+          <a-tab-pane
+            v-if="!isGlobalTerminal && !isTemplateMode"
+            :key="TabSettings.Tunnel"
+            :tab="t('TXT_CODE_FRP_INSTANCE_TITLE')"
+          >
+            <a-row :gutter="20">
+              <a-col :span="24">
+                <a-typography-paragraph>
+                  <a-typography-text type="secondary">
+                    {{ t("TXT_CODE_FRP_INSTANCE_HINT") }}
+                  </a-typography-text>
+                </a-typography-paragraph>
+              </a-col>
+              <a-col :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">{{ t("TXT_CODE_FRP_INSTANCE_ENABLE") }}</a-typography-title>
+                  <a-switch v-model:checked="formData.instance.config.extraServiceConfig.tunnelEnabled" />
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">{{ t("TXT_CODE_FRP_INSTANCE_USE_GLOBAL") }}</a-typography-title>
+                  <a-switch v-model:checked="formData.instance.config.extraServiceConfig.tunnelUseGlobal" />
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">{{ t("TXT_CODE_FRP_PROVIDER") }}</a-typography-title>
+                  <a-select v-model:value="formData.instance.config.extraServiceConfig.tunnelProvider" style="width: 100%">
+                    <a-select-option value="frp">{{ t("TXT_CODE_FRP_PROVIDER_FRP") }}</a-select-option>
+                    <a-select-option value="openfrp">{{ t("TXT_CODE_FRP_PROVIDER_OPENFRP") }}</a-select-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">{{ t("TXT_CODE_FRP_INSTANCE_LOCAL_PORT") }}</a-typography-title>
+                  <a-input-number
+                    v-model:value="formData.instance.config.extraServiceConfig.tunnelLocalPort"
+                    :min="0"
+                    :max="65535"
+                    style="width: 100%"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">{{ t("TXT_CODE_FRP_INSTANCE_REMOTE_PORT") }}</a-typography-title>
+                  <a-input-number
+                    v-model:value="formData.instance.config.extraServiceConfig.tunnelRemotePort"
+                    :min="0"
+                    :max="65535"
+                    style="width: 100%"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col v-if="formData.instance.config.extraServiceConfig.tunnelProvider === 'openfrp'" :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">OpenFRP Tunnel ID</a-typography-title>
+                  <a-input v-model:value="formData.instance.config.extraServiceConfig.openFrpTunnelId" />
+                </a-form-item>
+              </a-col>
+              <a-col v-if="formData.instance.config.extraServiceConfig.tunnelProvider === 'openfrp'" :xs="24" :lg="8">
+                <a-form-item>
+                  <a-typography-title :level="5">OpenFRP Token</a-typography-title>
+                  <a-input-password v-model:value="formData.instance.config.extraServiceConfig.openFrpToken" />
                 </a-form-item>
               </a-col>
             </a-row>

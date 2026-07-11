@@ -12,6 +12,11 @@ import {
   updateAiConfigApi,
   type AiPublicConfig
 } from "@/services/apis/ai";
+import {
+  getFrpSettings,
+  updateFrpSettings,
+  type FrpPublicSettings
+} from "@/services/apis/frp";
 import { useAppConfigStore } from "@/stores/useAppConfigStore";
 import { useLayoutConfigStore } from "@/stores/useLayoutConfig";
 import { useLayoutContainerStore } from "@/stores/useLayoutContainerStore";
@@ -32,7 +37,8 @@ import {
   PlusOutlined,
   ProjectOutlined,
   QuestionCircleOutlined,
-  RobotOutlined
+  RobotOutlined,
+  CloudServerOutlined
 } from "@ant-design/icons-vue";
 import { Modal, message, notification } from "ant-design-vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
@@ -45,6 +51,8 @@ const { execute, isReady } = settingInfo();
 const { execute: submitExecute, isLoading: submitIsLoading } = setSettingInfo();
 const { execute: loadAiConfigExecute, isLoading: aiConfigLoading } = aiConfigApi();
 const { execute: saveAiConfigExecute, isLoading: aiConfigSaving } = updateAiConfigApi();
+const { execute: loadFrpExecute, isLoading: frpLoading } = getFrpSettings();
+const { execute: saveFrpExecute, isLoading: frpSaving } = updateFrpSettings();
 const { getSettingsConfig, setSettingsConfig } = useLayoutConfigStore();
 const { setLogoImage, setBackgroundImage } = useAppConfigStore();
 const { changeDesignMode, containerState } = useLayoutContainerStore();
@@ -113,6 +121,22 @@ const aiForm = ref<{
   hasApiKey: false
 });
 
+const frpForm = ref({
+  enabled: false,
+  provider: "frp" as "frp" | "openfrp",
+  serverAddr: "",
+  serverPort: 7000,
+  authToken: "",
+  transport: "tcp",
+  tlsEnable: false,
+  openFrpToken: "",
+  pricePerGb: 0,
+  currency: "CNY",
+  defaultEnableOnInstance: false,
+  hasAuthToken: false,
+  hasOpenFrpToken: false
+});
+
 const submit = async (needReload: boolean = true) => {
   if (formData.value) {
     try {
@@ -166,6 +190,11 @@ const menus = arrayFilter([
     title: t("TXT_CODE_AI_SETTINGS_TAB"),
     key: "ai",
     icon: RobotOutlined
+  },
+  {
+    title: t("TXT_CODE_FRP_SETTINGS_TAB"),
+    key: "frp",
+    icon: CloudServerOutlined
   },
   {
     title: t("TXT_CODE_46cb40d5"),
@@ -447,6 +476,56 @@ const applyAiConfig = (cfg: AiPublicConfig) => {
   };
 };
 
+const applyFrpConfig = (cfg: FrpPublicSettings) => {
+  frpForm.value = {
+    enabled: Boolean(cfg.enabled),
+    provider: cfg.provider === "openfrp" ? "openfrp" : "frp",
+    serverAddr: cfg.serverAddr || "",
+    serverPort: Number(cfg.serverPort || 7000),
+    authToken: "",
+    transport: cfg.transport || "tcp",
+    tlsEnable: Boolean(cfg.tlsEnable),
+    openFrpToken: "",
+    pricePerGb: Number(cfg.pricePerGb || 0),
+    currency: cfg.currency || "CNY",
+    defaultEnableOnInstance: Boolean(cfg.defaultEnableOnInstance),
+    hasAuthToken: Boolean(cfg.hasAuthToken),
+    hasOpenFrpToken: Boolean(cfg.hasOpenFrpToken)
+  };
+};
+
+const loadFrpConfig = async () => {
+  try {
+    const res = await loadFrpExecute();
+    if (res.value) applyFrpConfig(res.value);
+  } catch (e: any) {
+    reportErrorMsg(e);
+  }
+};
+
+const submitFrpConfig = async () => {
+  try {
+    const payload: any = {
+      enabled: frpForm.value.enabled,
+      provider: frpForm.value.provider,
+      serverAddr: frpForm.value.serverAddr,
+      serverPort: frpForm.value.serverPort,
+      transport: frpForm.value.transport,
+      tlsEnable: frpForm.value.tlsEnable,
+      pricePerGb: frpForm.value.pricePerGb,
+      currency: frpForm.value.currency,
+      defaultEnableOnInstance: frpForm.value.defaultEnableOnInstance
+    };
+    if (frpForm.value.authToken.trim()) payload.authToken = frpForm.value.authToken.trim();
+    if (frpForm.value.openFrpToken.trim()) payload.openFrpToken = frpForm.value.openFrpToken.trim();
+    const res = await saveFrpExecute({ data: payload });
+    if (res.value) applyFrpConfig(res.value);
+    message.success(t("TXT_CODE_FRP_SAVED"));
+  } catch (e: any) {
+    reportErrorMsg(e);
+  }
+};
+
 const loadAiConfig = async () => {
   try {
     const res = await loadAiConfigExecute();
@@ -522,6 +601,7 @@ onMounted(async () => {
     }
   }, 100);
   loadAiConfig();
+  loadFrpConfig();
 });
 
 onUnmounted(() => {
@@ -1449,6 +1529,99 @@ onUnmounted(() => {
                     <div class="button">
                       <a-button type="primary" :loading="aiConfigSaving" @click="submitAiConfig">
                         {{ t("TXT_CODE_abfe9512") }}
+                      </a-button>
+                    </div>
+                  </a-form>
+                </div>
+              </a-spin>
+            </div>
+          </template>
+
+
+          <template #frp>
+            <div class="content-box">
+              <a-typography-title :level="4" class="mb-24">
+                {{ t("TXT_CODE_FRP_SETTINGS_TAB") }}
+              </a-typography-title>
+              <a-spin :spinning="frpLoading">
+                <div style="text-align: left">
+                  <a-form layout="vertical">
+                    <a-typography-paragraph>
+                      <a-typography-text type="secondary">
+                        {{ t("TXT_CODE_FRP_SETTINGS_DESC") }}
+                      </a-typography-text>
+                    </a-typography-paragraph>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">{{ t("TXT_CODE_FRP_ENABLE") }}</a-typography-title>
+                      <a-select v-model:value="frpForm.enabled" style="max-width: 320px">
+                        <a-select-option v-for="item in allYesNo" :key="String(item.value)" :value="item.value">
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">{{ t("TXT_CODE_FRP_PROVIDER") }}</a-typography-title>
+                      <a-select v-model:value="frpForm.provider" style="max-width: 320px">
+                        <a-select-option value="frp">{{ t("TXT_CODE_FRP_PROVIDER_FRP") }}</a-select-option>
+                        <a-select-option value="openfrp">{{ t("TXT_CODE_FRP_PROVIDER_OPENFRP") }}</a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <template v-if="frpForm.provider === 'frp'">
+                      <a-form-item>
+                        <a-typography-title :level="5">{{ t("TXT_CODE_FRP_SERVER_ADDR") }}</a-typography-title>
+                        <a-input v-model:value="frpForm.serverAddr" style="max-width: 420px" placeholder="frps.example.com" />
+                      </a-form-item>
+                      <a-form-item>
+                        <a-typography-title :level="5">{{ t("TXT_CODE_FRP_SERVER_PORT") }}</a-typography-title>
+                        <a-input-number v-model:value="frpForm.serverPort" :min="1" :max="65535" style="max-width: 220px" />
+                      </a-form-item>
+                      <a-form-item>
+                        <a-typography-title :level="5">{{ t("TXT_CODE_FRP_AUTH_TOKEN") }}</a-typography-title>
+                        <a-typography-paragraph>
+                          <a-typography-text type="secondary">{{ t("TXT_CODE_FRP_AUTH_TOKEN_HINT") }}</a-typography-text>
+                        </a-typography-paragraph>
+                        <a-input-password v-model:value="frpForm.authToken" style="max-width: 420px" :placeholder="frpForm.hasAuthToken ? '********' : ''" />
+                      </a-form-item>
+                      <a-form-item>
+                        <a-typography-title :level="5">{{ t("TXT_CODE_FRP_TLS") }}</a-typography-title>
+                        <a-select v-model:value="frpForm.tlsEnable" style="max-width: 320px">
+                          <a-select-option v-for="item in allYesNo" :key="String(item.value)" :value="item.value">
+                            {{ item.label }}
+                          </a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </template>
+
+                    <template v-else>
+                      <a-form-item>
+                        <a-typography-title :level="5">{{ t("TXT_CODE_FRP_OPENFRP_TOKEN") }}</a-typography-title>
+                        <a-input-password v-model:value="frpForm.openFrpToken" style="max-width: 420px" :placeholder="frpForm.hasOpenFrpToken ? '********' : ''" />
+                      </a-form-item>
+                    </template>
+
+                    <a-form-item>
+                      <a-typography-title :level="5">{{ t("TXT_CODE_FRP_PRICE") }}</a-typography-title>
+                      <a-input-number v-model:value="frpForm.pricePerGb" :min="0" :step="0.01" style="max-width: 220px" />
+                    </a-form-item>
+                    <a-form-item>
+                      <a-typography-title :level="5">{{ t("TXT_CODE_FRP_CURRENCY") }}</a-typography-title>
+                      <a-input v-model:value="frpForm.currency" style="max-width: 160px" />
+                    </a-form-item>
+                    <a-form-item>
+                      <a-typography-title :level="5">{{ t("TXT_CODE_FRP_DEFAULT_ENABLE") }}</a-typography-title>
+                      <a-select v-model:value="frpForm.defaultEnableOnInstance" style="max-width: 320px">
+                        <a-select-option v-for="item in allYesNo" :key="String(item.value)" :value="item.value">
+                          {{ item.label }}
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
+                    <div class="button">
+                      <a-button type="primary" :loading="frpSaving" @click="submitFrpConfig">
+                        {{ t("TXT_CODE_FRP_SAVE") }}
                       </a-button>
                     </div>
                   </a-form>

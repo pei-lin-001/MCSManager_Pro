@@ -210,7 +210,15 @@ export const defaultInstanceInfo: IGlobalInstanceConfig = {
   },
   extraServiceConfig: {
     openFrpTunnelId: "",
-    openFrpToken: ""
+    openFrpToken: "",
+    tunnelEnabled: false,
+    tunnelUseGlobal: true,
+    tunnelProvider: "frp",
+    tunnelLocalPort: 0,
+    tunnelRemotePort: 0,
+    tunnelServerAddr: "",
+    tunnelServerPort: 0,
+    tunnelAuthToken: ""
   }
 };
 
