@@ -21,8 +21,13 @@ export function makeSocketIo(addr: string, prefix?: string) {
   return io(parseForwardAddress(addr, "ws"), {
     path: prefix + "/socket.io",
     multiplex: false,
+    forceNew: true,
+    // Skip HTTP long-polling → websocket upgrade. Terminal open was paying an
+    // extra RTT (often multi-second over public WSS) for no benefit here.
+    transports: ["websocket"],
+    upgrade: false,
     reconnectionDelayMax: 1000 * 10,
-    timeout: 1000 * 30,
+    timeout: 1000 * 15,
     reconnection: true,
     reconnectionAttempts: 3,
     rejectUnauthorized: false

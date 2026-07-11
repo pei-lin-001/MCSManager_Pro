@@ -464,19 +464,17 @@ router.get(
       let result = await new RemoteRequest(remoteService).request("instance/outputlog", {
         instanceUuid
       });
-      if (ctx.query.size) {
-        let size,
-          sizeStr = ctx.query.size;
-        if (sizeStr instanceof Array) {
-          sizeStr = sizeStr[0];
-        }
-        size = parseInt(sizeStr);
-        if (sizeStr.toLowerCase().endsWith("kb")) {
-          size *= 1024;
-        }
-        if (result.length > size) {
-          result = result.slice(-size);
-        }
+      // Always bound history for terminal open. Unbounded logs (hundreds of KB)
+      // make every instance page feel multi-second slow when painted into xterm.
+      let sizeStr: any = ctx.query.size ?? "128KB";
+      if (sizeStr instanceof Array) sizeStr = sizeStr[0];
+      let size = parseInt(String(sizeStr), 10);
+      if (String(sizeStr).toLowerCase().endsWith("kb")) size *= 1024;
+      if (!Number.isFinite(size) || size <= 0) size = 128 * 1024;
+      // Hard ceiling even if caller asks for more.
+      size = Math.min(size, 512 * 1024);
+      if (typeof result === "string" && result.length > size) {
+        result = result.slice(-size);
       }
       ctx.body = result;
     } catch (err) {

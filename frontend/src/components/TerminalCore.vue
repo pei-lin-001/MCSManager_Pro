@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import connectErrorImage from "@/assets/daemon_connection_error.png";
+import {
+  MC_QUICK_COMMAND_GROUPS,
+  isMinecraftJavaType,
+  loadCustomQuickCommands,
+  saveCustomQuickCommands,
+  type McCustomQuickCommand,
+  type McQuickCommandItem
+} from "@/config/mcQuickCommands";
 import { useCommandHistory } from "@/hooks/useCommandHistory";
 import { useXhrPollError } from "@/hooks/useXhrPollError";
 import { t } from "@/lang/i18n";
 import { getInstanceOutputLog } from "@/services/apis/instance";
 import { useLayoutContainerStore } from "@/stores/useLayoutContainerStore";
-import { CodeOutlined, DeleteOutlined, LoadingOutlined } from "@ant-design/icons-vue";
+import {
+  CodeOutlined,
+  DeleteOutlined,
+  LoadingOutlined,
+  PlusOutlined,
+  ThunderboltOutlined
+} from "@ant-design/icons-vue";
 import { Terminal } from "@xterm/xterm";
-import { message } from "ant-design-vue";
-import { onMounted, ref } from "vue";
+import { Modal, message } from "ant-design-vue";
+import { computed, onMounted, ref } from "vue";
 import { encodeConsoleColor, type UseTerminalHook } from "../hooks/useTerminal";
 import { getRandomId } from "../tools/randId";
 
@@ -34,6 +48,7 @@ const {
   state,
   events,
   isConnect,
+  isRunning,
   socketAddress,
   execute: setUpTerminal,
   reconnect,
@@ -41,6 +56,104 @@ const {
   sendCommand,
   clearTerminal
 } = props.useTerminalHook;
+
+const showQuickCommands = computed(() => {
+  if (containerState.isDesignMode) return false;
+  return isMinecraftJavaType(state.value?.config?.type);
+});
+
+const quickDisabled = computed(() => !isConnect.value || !isRunning.value);
+
+// Primary groups always visible; gamerule group can be long → collapse extras.
+const primaryGroupIds = new Set(["time", "weather", "difficulty", "gamemode", "world"]);
+const expandedRules = ref(false);
+const customOpen = ref(false);
+const customList = ref<McCustomQuickCommand[]>(loadCustomQuickCommands());
+const customLabel = ref("");
+const customCommand = ref("");
+const customConfirm = ref(false);
+const sendingId = ref("");
+
+const visibleGroups = computed(() => {
+  return MC_QUICK_COMMAND_GROUPS.filter((g) => {
+    if (g.id === "gamerule") return expandedRules.value;
+    return primaryGroupIds.has(g.id);
+  });
+});
+
+const labelOf = (item: McQuickCommandItem) => {
+  const key = item.labelKey;
+  const translated = t(key);
+  return translated === key ? item.label : translated;
+};
+
+const groupLabel = (groupId: string, fallback: string, key: string) => {
+  const translated = t(key);
+  return translated === key ? fallback : translated;
+};
+
+const runCommand = async (item: { id: string; command: string; confirm?: boolean; label?: string }) => {
+  if (quickDisabled.value) {
+    message.warning(t("TXT_CODE_MC_QC_NEED_RUNNING"));
+    return;
+  }
+  const cmd = String(item.command || "").trim().replace(/^\//, "");
+  if (!cmd) return;
+
+  const doSend = () => {
+    try {
+      sendingId.value = item.id;
+      sendCommand(cmd);
+      message.success(t("TXT_CODE_MC_QC_SENT", { cmd }));
+    } catch (e: any) {
+      message.error(e?.message || String(e));
+    } finally {
+      setTimeout(() => {
+        if (sendingId.value === item.id) sendingId.value = "";
+      }, 300);
+    }
+  };
+
+  if (item.confirm) {
+    Modal.confirm({
+      title: t("TXT_CODE_MC_QC_CONFIRM_TITLE"),
+      content: cmd,
+      okText: t("TXT_CODE_MC_QC_CONFIRM_OK"),
+      cancelText: t("TXT_CODE_MC_QC_CONFIRM_CANCEL"),
+      okType: item.id.includes("kill") || item.id.includes("clear") ? "danger" : "primary",
+      onOk: () => doSend()
+    });
+    return;
+  }
+  doSend();
+};
+
+const saveCustom = () => {
+  const label = customLabel.value.trim().slice(0, 32);
+  const command = customCommand.value.trim().replace(/^\//, "");
+  if (!label || !command) {
+    message.warning(t("TXT_CODE_MC_QC_CUSTOM_CMD"));
+    return;
+  }
+  const next: McCustomQuickCommand = {
+    id: `custom-${Date.now()}`,
+    label,
+    command,
+    confirm: customConfirm.value
+  };
+  customList.value = [...customList.value, next].slice(0, 40);
+  saveCustomQuickCommands(customList.value);
+  customLabel.value = "";
+  customCommand.value = "";
+  customConfirm.value = false;
+  customOpen.value = false;
+  message.success(t("TXT_CODE_MC_QC_CUSTOM_SAVE"));
+};
+
+const removeCustom = (id: string) => {
+  customList.value = customList.value.filter((x) => x.id !== id);
+  saveCustomQuickCommands(customList.value);
+};
 
 const instanceId = props.instanceId;
 const daemonId = props.daemonId;
@@ -87,10 +200,18 @@ events.on("error", (error: Error) => {
   socketError.value = error;
 });
 
+// Only load a tail of history. Full InstanceLog can be hundreds of KB and
+// writing it into xterm blocks the UI for seconds after connect.
+const TERMINAL_HISTORY_SIZE = "64KB";
+
 events.once("detail", async () => {
   try {
     const { value } = await getInstanceOutputLog().execute({
-      params: { uuid: instanceId || "", daemonId: daemonId || "" }
+      params: {
+        uuid: instanceId || "",
+        daemonId: daemonId || "",
+        size: TERMINAL_HISTORY_SIZE
+      }
     });
 
     if (value) {
@@ -120,13 +241,17 @@ const refreshPage = async () => {
 // Do not reinitialize it in the parent component.
 onMounted(async () => {
   try {
-    if (instanceId && daemonId) {
-      await setUpTerminal({
-        instanceId,
-        daemonId
-      });
-    }
-    term = await initTerminal();
+    // Start stream channel + xterm in parallel. Previously xterm waited for the
+    // channel request even though they are independent; that added open latency.
+    const setupTask =
+      instanceId && daemonId
+        ? setUpTerminal({
+            instanceId,
+            daemonId
+          })
+        : Promise.resolve();
+    const [_, termInst] = await Promise.all([setupTask, initTerminal()]);
+    term = termInst as any;
   } catch (error: any) {
     console.error(error);
     throw error;
@@ -188,6 +313,103 @@ onMounted(async () => {
           <CodeOutlined style="font-size: 18px" />
         </template>
       </a-input>
+    </div>
+
+    <!-- Minecraft quick console actions: below command line, above performance card -->
+    <div v-if="showQuickCommands" class="mc-quick-commands">
+      <div class="mc-qc-header">
+        <div class="mc-qc-title">
+          <ThunderboltOutlined />
+          <span>{{ t("TXT_CODE_MC_QC_TITLE") }}</span>
+          <a-typography-text type="secondary" class="mc-qc-hint">
+            {{ t("TXT_CODE_MC_QC_HINT") }}
+          </a-typography-text>
+        </div>
+        <div class="mc-qc-actions">
+          <a-button size="small" type="link" @click="expandedRules = !expandedRules">
+            {{ expandedRules ? t("TXT_CODE_MC_QC_COLLAPSE") : t("TXT_CODE_MC_QC_EXPAND") }}
+          </a-button>
+          <a-button size="small" type="link" @click="customOpen = !customOpen">
+            <PlusOutlined />
+            {{ t("TXT_CODE_MC_QC_CUSTOM") }}
+          </a-button>
+        </div>
+      </div>
+
+      <div v-if="customOpen" class="mc-qc-custom-form">
+        <a-input
+          v-model:value="customLabel"
+          size="small"
+          :placeholder="t('TXT_CODE_MC_QC_CUSTOM_LABEL')"
+          style="max-width: 140px"
+        />
+        <a-input
+          v-model:value="customCommand"
+          size="small"
+          :placeholder="t('TXT_CODE_MC_QC_CUSTOM_CMD')"
+          style="flex: 1; min-width: 180px"
+        />
+        <a-checkbox v-model:checked="customConfirm">
+          {{ t("TXT_CODE_MC_QC_CUSTOM_CONFIRM") }}
+        </a-checkbox>
+        <a-button size="small" type="primary" @click="saveCustom">
+          {{ t("TXT_CODE_MC_QC_CUSTOM_SAVE") }}
+        </a-button>
+      </div>
+
+      <div
+        v-for="group in visibleGroups"
+        :key="group.id"
+        class="mc-qc-group"
+      >
+        <div class="mc-qc-group-label">
+          {{ groupLabel(group.id, group.label, group.labelKey) }}
+        </div>
+        <div class="mc-qc-btns">
+          <a-tooltip
+            v-for="item in group.items"
+            :key="item.id"
+            :title="item.tip || item.command"
+          >
+            <a-button
+              size="small"
+              :danger="!!item.danger"
+              :disabled="quickDisabled"
+              :loading="sendingId === item.id"
+              @click="runCommand(item)"
+            >
+              {{ labelOf(item) }}
+            </a-button>
+          </a-tooltip>
+        </div>
+      </div>
+
+      <div v-if="customList.length" class="mc-qc-group">
+        <div class="mc-qc-group-label">{{ t("TXT_CODE_MC_QC_CUSTOM") }}</div>
+        <div class="mc-qc-btns">
+          <span v-for="item in customList" :key="item.id" class="mc-qc-custom-item">
+            <a-tooltip :title="item.command">
+              <a-button
+                size="small"
+                :disabled="quickDisabled"
+                :loading="sendingId === item.id"
+                @click="runCommand(item)"
+              >
+                {{ item.label }}
+              </a-button>
+            </a-tooltip>
+            <a-button
+              size="small"
+              type="text"
+              danger
+              :title="t('TXT_CODE_MC_QC_CUSTOM_DELETE')"
+              @click="removeCustom(item.id)"
+            >
+              ×
+            </a-button>
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- Error Dialog -->
@@ -380,6 +602,81 @@ onMounted(async () => {
 
   .terminal-design-tip {
     color: rgba(255, 255, 255, 0.584);
+  }
+
+  .mc-quick-commands {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--card-border-color);
+    border-radius: 8px;
+    background: var(--card-color, var(--color-gray-1, #fafafa));
+  }
+
+  .mc-qc-custom-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .mc-qc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .mc-qc-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .mc-qc-hint {
+    font-weight: 400;
+    font-size: 12px;
+  }
+
+  .mc-qc-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .mc-qc-custom-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--color-gray-2, #f5f5f5);
+  }
+
+  .mc-qc-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .mc-qc-group-label {
+    min-width: 88px;
+    padding-top: 4px;
+    font-size: 12px;
+    color: var(--color-gray-8, #595959);
+    flex-shrink: 0;
+  }
+
+  .mc-qc-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
   }
 }
 </style>

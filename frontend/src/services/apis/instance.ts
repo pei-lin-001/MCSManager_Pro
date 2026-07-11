@@ -33,6 +33,8 @@ export const getInstanceOutputLog = useDefineApi<
     params: {
       uuid: string;
       daemonId: string;
+      /** Optional tail size, e.g. 64KB / 131072. Full history is too heavy for open. */
+      size?: string | number;
     };
   },
   string

@@ -3,12 +3,12 @@ import CardPanel from "@/components/CardPanel.vue";
 import { openMarketDialog, openRenewalDialog } from "@/components/fc";
 import IconBtn from "@/components/IconBtn.vue";
 import TerminalCore from "@/components/TerminalCore.vue";
-import TerminalTopTags from "@/components/TerminalTopTags.vue";
 import { useLayoutCardTools } from "@/hooks/useCardTools";
 import { INSTANCE_TYPE_TRANSLATION, verifyEULA } from "@/hooks/useInstance";
 import { useScreen } from "@/hooks/useScreen";
 import { t } from "@/lang/i18n";
 import {
+  getConfigFile,
   killInstance,
   openInstance,
   restartInstance,
@@ -17,6 +17,7 @@ import {
 } from "@/services/apis/instance";
 import { useAppStateStore } from "@/stores/useAppStateStore";
 import { sleep } from "@/tools/common";
+import { toCopy } from "@/tools/copy";
 import { reportErrorMsg } from "@/tools/validator";
 import type { LayoutCard } from "@/types";
 import { INSTANCE_CRASH_TIMEOUT, INSTANCE_STATUS } from "@/types/const";
@@ -25,11 +26,13 @@ import {
   CloseOutlined,
   CloudDownloadOutlined,
   CloudServerOutlined,
+  CopyOutlined,
   DownOutlined,
   InfoCircleOutlined,
   InteractionOutlined,
   LaptopOutlined,
   LoadingOutlined,
+  LinkOutlined,
   MoneyCollectOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
@@ -37,7 +40,7 @@ import {
   RobotOutlined
 } from "@ant-design/icons-vue";
 import { Modal } from "ant-design-vue";
-import { computed, h, onUnmounted, ref } from "vue";
+import { computed, h, onMounted, onUnmounted, ref, watch } from "vue";
 import { GLOBAL_INSTANCE_NAME } from "../../config/const";
 import { useTerminal, type UseTerminalHook } from "../../hooks/useTerminal";
 import { arrayFilter } from "../../tools/array";
@@ -69,6 +72,7 @@ const {
 const instanceId = getMetaOrRouteValue("instanceId");
 const daemonId = getMetaOrRouteValue("daemonId");
 const aiDrawerOpen = ref(false);
+const serverPort = ref<number | null>(null);
 const viewType = getMetaOrRouteValue("viewType", false);
 const innerTerminalType = computed(() => props.card.width === 12 && viewType === "inner");
 const instanceTypeText = computed(
@@ -270,6 +274,123 @@ const openAiAssistant = () => {
   aiDrawerOpen.value = true;
 };
 
+const connectHost = computed(() => {
+  // Prefer the host the operator is currently using in the browser.
+  // This works for both domain reverse-proxy and raw IP access.
+  const host = window.location.hostname;
+  return host || "127.0.0.1";
+});
+
+const parsePort = (value: unknown): number | null => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0 || n > 65535) return null;
+  return Math.floor(n);
+};
+
+const loadServerPort = async () => {
+  if (!instanceId || !daemonId) return;
+  const type = String(instanceInfo.value?.config?.type || "");
+  const isMc =
+    type.includes("minecraft/java") ||
+    type.includes("minecraft/bedrock") ||
+    type.includes("universal/mcdr");
+  if (!isMc) {
+    serverPort.value = null;
+    return;
+  }
+  try {
+    const res = await getConfigFile().execute({
+      params: {
+        uuid: instanceId,
+        daemonId: daemonId,
+        fileName: "server.properties",
+        type: "properties"
+      }
+    });
+    const data = res.value as Record<string, unknown> | null;
+    const port =
+      parsePort(data?.["server-port"]) ||
+      parsePort(data?.["server-portv6"]) ||
+      parsePort(data?.["query.port"]);
+    serverPort.value = port;
+  } catch {
+    serverPort.value = null;
+  }
+};
+
+const connectLinks = computed(() => {
+  const links: Array<{ label: string; value: string }> = [];
+  const host = connectHost.value;
+  const ports = instanceInfo.value?.info?.allocatedPorts || [];
+
+  // Docker mapped ports are the most accurate public endpoints.
+  if (ports.length > 0) {
+    for (const item of ports) {
+      const hostPort = String(item.host || "").split(":")[0] || String(item.host || "");
+      const port = parsePort(hostPort.includes("->") ? hostPort.split("->").pop() : hostPort);
+      // allocatedPorts.host may already be "0.0.0.0:25565" style or plain port.
+      let finalHost = host;
+      let finalPort = port;
+      const hostText = String(item.host || "");
+      if (hostText.includes(":")) {
+        const parts = hostText.split(":");
+        const maybePort = parsePort(parts[parts.length - 1]);
+        if (maybePort) finalPort = maybePort;
+        const maybeHost = parts.slice(0, -1).join(":");
+        if (maybeHost && maybeHost !== "0.0.0.0" && maybeHost !== "::" && maybeHost !== "[::]") {
+          finalHost = maybeHost.replace(/^\[|\]$/g, "");
+        }
+      } else if (parsePort(hostText)) {
+        finalPort = parsePort(hostText);
+      }
+      if (!finalPort) continue;
+      const protocol = String(item.protocol || "tcp").toUpperCase();
+      links.push({
+        label: protocol,
+        value: `${finalHost}:${finalPort}`
+      });
+    }
+  }
+
+  // Non-docker: use server.properties / pingConfig / basePort fallbacks.
+  if (links.length === 0) {
+    const port =
+      serverPort.value ||
+      parsePort(instanceInfo.value?.config?.pingConfig?.port) ||
+      parsePort(instanceInfo.value?.config?.basePort);
+    if (port) {
+      links.push({
+        label: t("TXT_CODE_INST_CONNECT_PRIMARY"),
+        value: `${host}:${port}`
+      });
+    }
+  }
+
+  // Deduplicate
+  const seen = new Set<string>();
+  return links.filter((item) => {
+    if (seen.has(item.value)) return false;
+    seen.add(item.value);
+    return true;
+  });
+});
+
+const copyConnectLink = async (value: string) => {
+  await toCopy(value);
+};
+
+watch(
+  () => [instanceId, daemonId, instanceInfo.value?.config?.type, instanceInfo.value?.status],
+  () => {
+    void loadServerPort();
+  },
+  { immediate: true }
+);
+
+onMounted(() => {
+  void loadServerPort();
+});
+
 onUnmounted(() => {
   if (checkRunningTimer) clearTimeout(checkRunningTimer);
 });
@@ -386,8 +507,23 @@ onUnmounted(() => {
         </template>
       </BetweenMenus>
     </div>
-    <div class="mb-10 justify-end">
-      <TerminalTopTags :info="instanceInfo?.info" :is-stopped="isStopped" />
+    <div class="mb-10 connect-row">
+      <div v-if="connectLinks.length" class="connect-link-bar">
+        <span class="connect-link-label">
+          <LinkOutlined />
+          {{ t("TXT_CODE_INST_CONNECT_LINK") }}
+        </span>
+        <a-tag
+          v-for="item in connectLinks"
+          :key="item.value"
+          class="connect-link-tag"
+          color="processing"
+          @click="copyConnectLink(item.value)"
+        >
+          <span class="connect-link-text">{{ item.value }}</span>
+          <CopyOutlined class="ml-4" />
+        </a-tag>
+      </div>
     </div>
     <TerminalCore
       v-if="instanceId && daemonId"
@@ -455,8 +591,23 @@ onUnmounted(() => {
       </a-dropdown>
     </template>
     <template #body>
-      <div class="mb-6">
-        <TerminalTopTags :info="instanceInfo?.info" :is-stopped="isStopped" />
+      <div class="mb-6 connect-row">
+        <div v-if="connectLinks.length" class="connect-link-bar">
+          <span class="connect-link-label">
+            <LinkOutlined />
+            {{ t("TXT_CODE_INST_CONNECT_LINK") }}
+          </span>
+          <a-tag
+            v-for="item in connectLinks"
+            :key="item.value"
+            class="connect-link-tag"
+            color="processing"
+            @click="copyConnectLink(item.value)"
+          >
+            <span class="connect-link-text">{{ item.value }}</span>
+            <CopyOutlined class="ml-4" />
+          </a-tag>
+        </div>
       </div>
       <TerminalCore
         v-if="instanceId && daemonId"
@@ -566,5 +717,38 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+.connect-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connect-link-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.connect-link-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.connect-link-tag {
+  cursor: pointer;
+  user-select: none;
+  margin-inline-end: 0 !important;
+}
+
+.connect-link-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-weight: 600;
 }
 </style>
