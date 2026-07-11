@@ -23,6 +23,7 @@ import SystemUser from "./app/service/user_service";
 import versionAdapter from "./app/service/version_adapter";
 import { initSystemConfig, systemConfig } from "./app/setting";
 import { initAiConfig } from "./app/service/ai_config_service";
+import { initFrpConfig } from "./app/service/frp_config_service";
 import { checkBusinessMode, getVersion, initVersionManager } from "./app/version";
 
 function hasParams(name: string) {
@@ -98,6 +99,7 @@ async function main() {
   // load global configuration file
   initSystemConfig();
   initAiConfig();
+  initFrpConfig();
 
   if (systemConfig && systemConfig?.redisUrl?.length != 0) {
     await RedisStorage.initialize(systemConfig.redisUrl);

@@ -9,6 +9,7 @@ import InstanceBaseInfo from "@/widgets/instance/BaseInfo.vue";
 import InstanceFileManager from "@/widgets/instance/FileManager.vue";
 import InstanceManagerBtns from "@/widgets/instance/ManagerBtns.vue";
 import InstanceModManager from "@/widgets/instance/ModManager.vue";
+import InstancePlayerMonitor from "@/widgets/instance/PlayerMonitor.vue";
 import Schedule from "@/widgets/instance/Schedule.vue";
 import InstanceServerConfigFile from "@/widgets/instance/ServerConfigFile.vue";
 import InstanceServerConfigOverview from "@/widgets/instance/ServerConfigOverview.vue";
@@ -19,12 +20,12 @@ import InstanceChart from "@/widgets/InstanceChart.vue";
 import InstanceList from "@/widgets/InstanceList.vue";
 import LoginCard from "@/widgets/LoginCard.vue";
 import MarketEditor from "@/widgets/market/editor.vue";
-import ModBrowser from "@/widgets/mod/ModBrowser.vue";
 import Market from "@/widgets/market/index.vue";
 import NodeItem from "@/widgets/node/NodeItem.vue";
 import NodeList from "@/widgets/NodeList.vue";
 import NodeOverview from "@/widgets/NodeOverview.vue";
 import OperationLogCard from "@/widgets/OperationLogCard.vue";
+import FrpTrafficCard from "@/widgets/FrpTrafficCard.vue";
 import Carousel from "@/widgets/others/Carousel.vue";
 import ClockCard from "@/widgets/others/ClockCard.vue";
 import IframeCard from "@/widgets/others/IframeCard.vue";
@@ -77,6 +78,7 @@ export const LAYOUT_CARD_TYPES: { [key: string]: any } = {
   InstanceServerConfigFile,
   InstanceFileManager,
   InstanceModManager,
+  InstancePlayerMonitor,
   UserAccessSettings,
   ImageBox,
   QuickStartFlow,
@@ -97,7 +99,7 @@ export const LAYOUT_CARD_TYPES: { [key: string]: any } = {
   MusicCard,
   ShelvesCard,
   OperationLogCard,
-  ModBrowser,
+  FrpTrafficCard,
   Market,
   MarketEditor
 };
@@ -468,14 +470,14 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.USER,
-      type: "ModBrowser",
-      title: t("TXT_CODE_MOD_BROWSER_TITLE"),
+      permission: ROLE.ADMIN,
+      type: "FrpTrafficCard",
+      title: t("TXT_CODE_FRP_TRAFFIC_TITLE"),
       meta: {},
-      width: 12,
-      description: t("TXT_CODE_MOD_BROWSER_DESC"),
-      height: LayoutCardHeight.AUTO,
-      category: NEW_CARD_TYPE.INSTANCE
+      width: 6,
+      description: t("TXT_CODE_FRP_TRAFFIC_DESC"),
+      height: LayoutCardHeight.MEDIUM,
+      category: NEW_CARD_TYPE.DATA
     },
     {
       id: getRandomId(),

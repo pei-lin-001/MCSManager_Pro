@@ -5,7 +5,6 @@ import {
   aiStatusApi,
   streamAiChat,
   type AiChatMessage,
-  type AiChatScene,
   type AiProposedAction,
   type AiStatus,
   type AiThinkingEffort
@@ -23,20 +22,12 @@ import {
 import { message } from "ant-design-vue";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
-const props = withDefaults(
-  defineProps<{
-    open: boolean;
-    instanceId: string;
-    daemonId: string;
-    instanceName?: string;
-    scene?: AiChatScene;
-    hideIncludeLog?: boolean;
-  }>(),
-  {
-    scene: "terminal",
-    hideIncludeLog: false
-  }
-);
+const props = defineProps<{
+  open: boolean;
+  instanceId: string;
+  daemonId: string;
+  instanceName?: string;
+}>();
 
 const emit = defineEmits<{
   (e: "update:open", value: boolean): void;
@@ -52,7 +43,7 @@ interface ChatItem {
 }
 
 const inputText = ref("");
-const includeLog = ref(props.scene !== "mod_library");
+const includeLog = ref(true);
 const messages = ref<ChatItem[]>([]);
 const status = ref<AiStatus | null>(null);
 const listRef = ref<HTMLElement | null>(null);
@@ -87,22 +78,12 @@ const thinkingOptions = computed(() => [
   { label: t("TXT_CODE_AI_THINKING_HIGH"), value: "high" as const }
 ]);
 
-const quickPrompts = computed(() => {
-  if (props.scene === "mod_library") {
-    return [
-      t("TXT_CODE_AI_PROMPT_INSTALL_MOD"),
-      t("TXT_CODE_AI_PROMPT_RECOMMEND_MODS"),
-      t("TXT_CODE_AI_PROMPT_INSTALL_PLUGIN"),
-      t("TXT_CODE_AI_PROMPT_CHECK_LOADER")
-    ];
-  }
-  return [
-    t("TXT_CODE_AI_PROMPT_DIAGNOSE"),
-    t("TXT_CODE_AI_PROMPT_WHY_OFFLINE"),
-    t("TXT_CODE_AI_PROMPT_RESTART_SAFE"),
-    t("TXT_CODE_AI_PROMPT_ANNOUNCE")
-  ];
-});
+const quickPrompts = computed(() => [
+  t("TXT_CODE_AI_PROMPT_DIAGNOSE"),
+  t("TXT_CODE_AI_PROMPT_WHY_OFFLINE"),
+  t("TXT_CODE_AI_PROMPT_RESTART_SAFE"),
+  t("TXT_CODE_AI_PROMPT_ANNOUNCE")
+]);
 
 const loadStatus = async () => {
   try {
@@ -279,9 +260,8 @@ const sendMessage = async (preset?: string) => {
       instanceUuid: props.instanceId,
       message: text,
       history,
-      includeLog: props.scene === "mod_library" ? false : includeLog.value,
+      includeLog: includeLog.value,
       thinkingEffort: thinkingEffort.value,
-      scene: props.scene,
       signal: abortController.signal,
       onEvent: (event) => {
         const current = messages.value[assistantIndex];
@@ -344,11 +324,73 @@ const sendMessage = async (preset?: string) => {
   }
 };
 
+const formatStepResult = (step: any, index: number): string => {
+  const mark = step?.ok ? "✅" : "❌";
+  const type = String(step?.type || "step");
+  const msg = String(step?.message || "");
+  let block = `${mark} ${index + 1}. ${type}${msg ? `: ${msg}` : ""}`;
+  const result = step?.result;
+
+  if (!step?.ok) return block;
+
+  if (type === "command") {
+    const command = result?.command || "";
+    const tail = result?.consoleTail || "";
+    if (command) block += `\n   $ ${command}`;
+    if (tail) {
+      block += `\n\n\`\`\`console\n${String(tail).slice(0, 3000)}\n\`\`\``;
+    } else {
+      block += `\n   _${t("TXT_CODE_AI_NO_CONSOLE_FEEDBACK")}_`;
+    }
+    return block;
+  }
+
+  if ((type === "read_file" || type === "get_logs") && result?.content != null) {
+    block += `\n\n\`\`\`${type === "get_logs" ? "log" : "text"}\n${String(result.content).slice(0, 2500)}\n\`\`\``;
+    if (result.truncated) block += `\n_${t("TXT_CODE_AI_RESULT_TRUNCATED")}_`;
+    return block;
+  }
+
+  if ((type === "list_files" || type === "list_mods") && result) {
+    try {
+      block += `\n\n\`\`\`json\n${JSON.stringify(result, null, 2).slice(0, 2500)}\n\`\`\``;
+    } catch {
+      // ignore
+    }
+    return block;
+  }
+
+  if (type === "install_mod" || type === "open" || type === "stop" || type === "restart" || type === "kill") {
+    return block;
+  }
+
+  if (result != null) {
+    try {
+      const pretty =
+        typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      if (pretty && pretty !== "{}" && pretty !== "null") {
+        block += `\n\n\`\`\`text\n${String(pretty).slice(0, 2000)}\n\`\`\``;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return block;
+};
+
 const confirmAction = async (action: AiProposedAction, index: number) => {
   if (!props.instanceId || !props.daemonId) return;
   const key = `${index}-${action.type}-${action.command || ""}-${action.modQuery || ""}-${action.projectId || ""}-${action.versionId || ""}-${action.target || ""}-${action.path || ""}-${action.fileName || ""}-${action.title || ""}`;
   executingKey.value = key;
   try {
+    // Show immediate "running" feedback in chat so the operator sees progress.
+    messages.value.push({
+      role: "system",
+      content: `⏳ ${t("TXT_CODE_AI_ACTION_RUNNING")}: **${actionLabel(action)}**`
+    });
+    await scrollToBottom();
+    const runningIndex = messages.value.length - 1;
+
     const res = await requestExecute({
       data: {
         daemonId: props.daemonId,
@@ -364,24 +406,24 @@ const confirmAction = async (action: AiProposedAction, index: number) => {
       message.warning(res.value?.message || t("TXT_CODE_AI_CHAIN_PARTIAL"));
     }
 
-    let detail = `${ok ? t("TXT_CODE_AI_ACTION_DONE") : t("TXT_CODE_AI_CHAIN_PARTIAL")}: ${actionLabel(action)}`;
+    let detail = `${ok ? "✅" : "⚠️"} **${ok ? t("TXT_CODE_AI_ACTION_DONE") : t("TXT_CODE_AI_CHAIN_PARTIAL")}**\n${actionLabel(action)}`;
+    if (res.value?.message) {
+      detail += `\n\n${res.value.message}`;
+    }
     const result = res.value?.result as any;
 
     if (action.type === "action_chain" && result?.steps) {
-      detail += `\n\n${t("TXT_CODE_AI_CHAIN_PROGRESS")}: ${result.successCount}/${result.total}`;
-      const lines = (result.steps as any[])
-        .map((step, i) => {
-          const mark = step.ok ? "✅" : "❌";
-          return `${mark} ${i + 1}. ${step.type}: ${step.message || ""}`;
-        })
-        .join("\n");
-      detail += `\n\n\`\`\`text\n${lines}\n\`\`\``;
-      // include short outputs from read/get_logs steps
-      for (const step of result.steps as any[]) {
-        if (!step?.ok) continue;
-        if ((step.type === "read_file" || step.type === "get_logs") && step.result?.content) {
-          detail += `\n\n**${step.type}**\n\`\`\`text\n${String(step.result.content).slice(0, 2500)}\n\`\`\``;
-        }
+      detail += `\n\n${t("TXT_CODE_AI_CHAIN_PROGRESS")}: **${result.successCount}/${result.total}**`;
+      const lines = (result.steps as any[]).map((step, i) => formatStepResult(step, i));
+      detail += `\n\n${lines.join("\n\n")}`;
+    } else if (action.type === "command") {
+      const command = result?.command || action.command || "";
+      const tail = result?.consoleTail || "";
+      if (command) detail += `\n\n$ ${command}`;
+      if (tail) {
+        detail += `\n\n**${t("TXT_CODE_AI_CONSOLE_FEEDBACK")}**\n\`\`\`console\n${String(tail).slice(0, 4000)}\n\`\`\``;
+      } else {
+        detail += `\n\n_${t("TXT_CODE_AI_NO_CONSOLE_FEEDBACK")}_`;
       }
     } else if (action.type === "read_file" && result?.content != null) {
       detail += `\n\n\`\`\`text\n${String(result.content).slice(0, 4000)}\n\`\`\``;
@@ -396,17 +438,38 @@ const confirmAction = async (action: AiProposedAction, index: number) => {
       } catch {
         // ignore
       }
-    } else if (res.value?.message) {
-      detail += `\n${res.value.message}`;
+    } else if (result != null) {
+      try {
+        const pretty = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+        if (pretty && pretty !== "{}" && pretty !== "null") {
+          detail += `\n\n\`\`\`text\n${String(pretty).slice(0, 2500)}\n\`\`\``;
+        }
+      } catch {
+        // ignore
+      }
     }
 
-    messages.value.push({
-      role: "system",
-      content: detail
-    });
+    if (messages.value[runningIndex]?.role === "system") {
+      messages.value[runningIndex] = {
+        role: "system",
+        content: detail
+      };
+    } else {
+      messages.value.push({
+        role: "system",
+        content: detail
+      });
+    }
     await scrollToBottom();
   } catch (error: unknown) {
     reportErrorMsg(error);
+    messages.value.push({
+      role: "system",
+      content: `❌ ${t("TXT_CODE_AI_ACTION_FAILED")}: ${actionLabel(action)}\n${
+        error instanceof Error ? error.message : String(error)
+      }`
+    });
+    await scrollToBottom();
   } finally {
     executingKey.value = "";
   }
@@ -461,11 +524,7 @@ onUnmounted(() => {
         <span>{{ instanceName || t("TXT_CODE_AI_CURRENT_INSTANCE") }}</span>
       </div>
       <a-typography-text type="secondary" class="ai-desc">
-        {{
-          scene === "mod_library"
-            ? t("TXT_CODE_AI_MOD_ASSISTANT_DESC")
-            : t("TXT_CODE_AI_ASSISTANT_DESC")
-        }}
+        {{ t("TXT_CODE_AI_ASSISTANT_DESC") }}
       </a-typography-text>
 
       <a-alert
@@ -503,11 +562,7 @@ onUnmounted(() => {
       <div v-if="messages.length === 0" class="empty-tip">
         <AlertOutlined class="mb-8" />
         <div>
-          {{
-            scene === "mod_library"
-              ? t("TXT_CODE_AI_MOD_EMPTY_HINT")
-              : t("TXT_CODE_AI_EMPTY_HINT")
-          }}
+          {{ t("TXT_CODE_AI_EMPTY_HINT") }}
         </div>
       </div>
 
@@ -605,7 +660,7 @@ onUnmounted(() => {
     <div class="composer">
       <div class="composer-tools mb-8">
         <a-space wrap>
-          <a-checkbox v-if="!hideIncludeLog && scene !== 'mod_library'" v-model:checked="includeLog">
+          <a-checkbox v-model:checked="includeLog">
             {{ t("TXT_CODE_AI_INCLUDE_LOG") }}
           </a-checkbox>
           <a-select
@@ -800,7 +855,9 @@ onUnmounted(() => {
 }
 
 .action-list {
-  margin-top: 10px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(22, 119, 255, 0.25);
 }
 
 .action-steps {
@@ -815,22 +872,32 @@ onUnmounted(() => {
   opacity: 0.9;
 }
 .action-card {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: 1px solid rgba(22, 119, 255, 0.28);
+  border-radius: 10px;
+  padding: 10px 12px;
   margin-top: 8px;
-  background: #fff;
+  background: rgba(22, 119, 255, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .action-title {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 13px;
 }
 
 .action-reason {
   margin-top: 4px;
-  opacity: 0.75;
+  opacity: 0.8;
   font-size: 12px;
+}
+
+.role-system .chat-bubble {
+  max-width: 100%;
+  width: 100%;
+}
+
+.role-system .chat-content {
+  white-space: normal;
 }
 
 .composer {

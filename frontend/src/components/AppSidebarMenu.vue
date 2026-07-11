@@ -10,7 +10,6 @@ import {
   AppstoreOutlined,
   AreaChartOutlined,
   LinkOutlined,
-  ApiOutlined,
   LoginOutlined,
   MenuOutlined,
   SettingOutlined,
@@ -38,7 +37,6 @@ const isRouteActive = (path: string): boolean => {
 const routePathIcons: Record<string, Component> = {
   "/instances": AppstoreOutlined,
   "/market": ShopOutlined,
-  "/mods": ApiOutlined,
   "/overview": AreaChartOutlined,
   "/users": TeamOutlined,
   "/node": ApartmentOutlined,

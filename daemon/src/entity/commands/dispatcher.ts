@@ -17,8 +17,12 @@ import PtyStartCommand from "./pty/pty_start";
 import RconCommand from "./steam/rcon_command";
 import InstanceDiskCheckTask from "./task/any_stats";
 import DockerStatsTask from "./task/docker_stats";
+import ProcessStatsTask from "./task/process_stats";
 import PingMinecraftServerTask from "./task/mc_players";
+import MinecraftTpsTask from "./task/tps_monitor";
+import McsmMetricsFileTask from "./task/mcsm_metrics_file";
 import TimeCheck from "./task/time";
+import FrpTunnelTask from "./task/frp_tunnel";
 
 // If you add a new "Preset", Please add the definition here.
 export type IPresetCommand =
@@ -46,6 +50,7 @@ export default class FunctionDispatcher extends InstanceCommand {
 
     // the component that the instance must mount
     instance.lifeCycleTaskManager.registerLifeCycleTask(new TimeCheck());
+    instance.lifeCycleTaskManager.registerLifeCycleTask(new FrpTunnelTask());
 
     // Instance general preset capabilities
     instance.setPreset("command", new GeneralSendCommand());
@@ -60,6 +65,7 @@ export default class FunctionDispatcher extends InstanceCommand {
     // Preset the basic operation mode according to the instance startup type
     if (!instance.config.processType || instance.config.processType === "general") {
       instance.setPreset("start", new GeneralStartCommand());
+      instance.lifeCycleTaskManager.registerLifeCycleTask(new ProcessStatsTask());
     }
 
     // Enable emulated terminal mode
@@ -77,13 +83,16 @@ export default class FunctionDispatcher extends InstanceCommand {
       instance.setPreset("command", new RconCommand());
     }
 
-    // Minecraft Ping
+    // Minecraft Ping + TPS sampling
     if (
       instance.config.type.includes(Instance.TYPE_MINECRAFT_JAVA) ||
       instance.config.type === TYPE_MINECRAFT_MCDR
     ) {
       instance.setPreset("refreshPlayers", new PingJavaMinecraftServerCommand());
       instance.lifeCycleTaskManager.registerLifeCycleTask(new PingMinecraftServerTask());
+      instance.lifeCycleTaskManager.registerLifeCycleTask(new MinecraftTpsTask());
+      // Prefer companion mod JSON metrics when present.
+      instance.lifeCycleTaskManager.registerLifeCycleTask(new McsmMetricsFileTask());
     }
   }
 }

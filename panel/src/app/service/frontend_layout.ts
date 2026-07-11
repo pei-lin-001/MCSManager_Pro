@@ -18,15 +18,24 @@ export function getFrontendLayoutConfig(): string {
     layoutConfig = storage.readFile(LAYOUT_CONFIG_NAME);
   }
   if (layoutConfig) {
+    const currentLayoutConfig = JSON.parse(layoutConfig) as IPageLayoutConfig[];
+    let changed = false;
+
     if (GlobalVariable.get("versionChange")) {
       const latestLayoutConfig = getDefaultFrontendLayoutConfig();
-      const currentLayoutConfig = JSON.parse(layoutConfig) as IPageLayoutConfig[];
       for (const page of latestLayoutConfig) {
         if (!currentLayoutConfig.find((item) => item.page === page.page)) {
           currentLayoutConfig.push(page);
+          changed = true;
         }
       }
       GlobalVariable.set("versionChange", null);
+    }
+
+    // Ensure player monitor sits on terminal root under performance.
+    if (ensureTerminalPlayerMonitor(currentLayoutConfig)) changed = true;
+
+    if (changed) {
       setFrontendLayoutConfig(currentLayoutConfig);
       return JSON.stringify(currentLayoutConfig);
     }
@@ -34,6 +43,39 @@ export function getFrontendLayoutConfig(): string {
   } else {
     return JSON.stringify(getDefaultFrontendLayoutConfig());
   }
+}
+
+/** Insert InstancePlayerMonitor after performance on terminal page when missing. */
+function ensureTerminalPlayerMonitor(config: IPageLayoutConfig[]): boolean {
+  const page = config.find((item) => item.page === "/instances/terminal");
+  if (!page?.items?.length) return false;
+  if (page.items.some((item) => item.type === "InstancePlayerMonitor")) return false;
+
+  const card: ILayoutCard = {
+    id: getRandomId(),
+    meta: {},
+    type: "InstancePlayerMonitor",
+    title: t("TXT_CODE_PLAYER_MONITOR_TITLE"),
+    width: 12,
+    height: LayoutCardHeight.AUTO
+  };
+
+  const perfIdx = page.items.findIndex((item) => item.type === "InstancePerformance");
+  if (perfIdx >= 0) {
+    page.items.splice(perfIdx + 1, 0, card);
+    return true;
+  }
+
+  const baseIdx = page.items.findIndex(
+    (item) => item.type === "InstanceBaseInfo" || item.type === "InstanceManagerBtns"
+  );
+  if (baseIdx >= 0) {
+    page.items.splice(baseIdx, 0, card);
+    return true;
+  }
+
+  page.items.push(card);
+  return true;
 }
 
 export function setFrontendLayoutConfig(config: IPageLayoutConfig[]) {
@@ -157,6 +199,15 @@ function getDefaultFrontendLayoutConfig(): IPageLayoutConfig[] {
         {
           id: getRandomId(),
           meta: {},
+          type: "FrpTrafficCard",
+          title: t("TXT_CODE_FRP_TRAFFIC_TITLE"),
+          width: 8,
+          description: t("TXT_CODE_FRP_TRAFFIC_DESC"),
+          height: LayoutCardHeight.MEDIUM
+        },
+        {
+          id: getRandomId(),
+          meta: {},
           type: "OperationLogCard",
           title: t("TXT_CODE_6a444b79"),
           width: 4,
@@ -184,20 +235,6 @@ function getDefaultFrontendLayoutConfig(): IPageLayoutConfig[] {
           title: "",
           width: 12,
           height: LayoutCardHeight.MINI
-        }
-      ]
-    },
-    {
-      page: "/mods",
-      items: [
-        {
-          id: getRandomId(),
-          meta: {},
-          type: "ModBrowser",
-          title: t("TXT_CODE_MOD_BROWSER_TITLE"),
-          width: 12,
-          height: LayoutCardHeight.AUTO,
-          disableDelete: true
         }
       ]
     },
@@ -267,7 +304,14 @@ function getDefaultFrontendLayoutConfig(): IPageLayoutConfig[] {
           width: 12,
           height: LayoutCardHeight.SMALL
         },
-
+        {
+          id: getRandomId(),
+          meta: {},
+          type: "InstancePlayerMonitor",
+          title: t("TXT_CODE_PLAYER_MONITOR_TITLE"),
+          width: 12,
+          height: LayoutCardHeight.AUTO
+        },
         {
           id: getRandomId(),
           meta: {},

@@ -140,6 +140,14 @@ const originRouterConfig: RouterConfig[] = [
             }
           },
           {
+            path: `/instances/terminal/players`,
+            name: t("TXT_CODE_PLAYER_MONITOR_TITLE"),
+            component: LayoutContainer,
+            meta: {
+              permission: ROLE.USER
+            }
+          },
+          {
             path: `/instances/terminal/serverConfig`,
             name: t("TXT_CODE_d07742fe"),
             component: LayoutContainer,
@@ -168,15 +176,6 @@ const originRouterConfig: RouterConfig[] = [
         ]
       }
     ]
-  },
-  {
-    path: "/mods",
-    name: t("TXT_CODE_MOD_BROWSER_TITLE"),
-    component: LayoutContainer,
-    meta: {
-      mainMenu: true,
-      permission: ROLE.USER
-    }
   },
   {
     path: "/market",

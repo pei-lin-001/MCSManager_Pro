@@ -21,7 +21,6 @@ export type AiActionType =
   | "get_logs"
   | "list_mods"
   | "action_chain";
-export type AiChatScene = "terminal" | "mod_library";
 export type AiThinkingEffort = "off" | "low" | "medium" | "high";
 
 export interface AiProposedAction {
@@ -171,7 +170,6 @@ export const aiChatApi = useDefineApi<
       history?: AiChatMessage[];
       includeLog?: boolean;
       thinkingEffort?: AiThinkingEffort;
-      scene?: AiChatScene;
     };
   },
   AiChatResponse
@@ -220,7 +218,6 @@ export async function streamAiChat(options: {
   history?: AiChatMessage[];
   includeLog?: boolean;
   thinkingEffort?: AiThinkingEffort;
-  scene?: AiChatScene;
   signal?: AbortSignal;
   onEvent: (event: AiStreamEvent) => void;
 }): Promise<void> {
@@ -241,8 +238,7 @@ export async function streamAiChat(options: {
       message: options.message,
       history: options.history || [],
       includeLog: options.includeLog !== false,
-      thinkingEffort: options.thinkingEffort,
-      scene: options.scene
+      thinkingEffort: options.thinkingEffort
     }),
     signal: options.signal,
     credentials: "include"

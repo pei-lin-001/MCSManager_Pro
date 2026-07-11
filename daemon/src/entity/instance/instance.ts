@@ -46,6 +46,46 @@ interface IInstanceInfo {
   memoryLimit?: number;
   storageUsage?: number;
   storageLimit?: number;
+  processPid?: number;
+  startedAt?: number;
+  tps?: number;
+  mspt?: number;
+  tpsAvg?: number;
+  tpsUpdatedAt?: number;
+  tpsSource?: string;
+  tpsLoadPercent?: number;
+  tpsHistory?: { value: string; mspt?: string; time: number }[];
+  resourceHistory?: { t: number; cpu?: string; mem?: string; memBytes?: string }[];
+  mcsmMetricsOk?: boolean;
+  mcsmMetricsTs?: number;
+  mcsmMetricsAgeMs?: number;
+  mcsmPlayers?: Array<{
+    name: string;
+    uuid?: string;
+    pingMs?: number;
+    dim?: string;
+    x?: number;
+    y?: number;
+    z?: number;
+    afk?: boolean;
+    sessionPlayMs?: number;
+    sessionActiveMs?: number;
+    sessionAfkMs?: number;
+    totalPlayMs?: number;
+    totalActiveMs?: number;
+    totalAfkMs?: number;
+    deaths?: number;
+    playerKills?: number;
+    mobKills?: number;
+    blocksBroken?: number;
+    blocksPlaced?: number;
+    distanceTotal?: number;
+    joinCount?: number;
+    firstJoin?: number;
+    lastJoin?: number;
+  }>;
+  mcsmRankings?: Record<string, Array<{ name: string; uuid?: string; value: number }>>;
+  mcsmModVersion?: string;
   allocatedPorts?: { host: string; container: number; protocol: string }[];
 }
 
@@ -202,6 +242,54 @@ export default class Instance extends EventEmitter {
         this.config.extraServiceConfig,
         cfg.extraServiceConfig,
         "openFrpTunnelId",
+        String
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelEnabled",
+        Boolean
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelUseGlobal",
+        Boolean
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelProvider",
+        String
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelLocalPort",
+        Number
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelRemotePort",
+        Number
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelServerAddr",
+        String
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelServerPort",
+        Number
+      );
+      configureEntityParams(
+        this.config.extraServiceConfig,
+        cfg.extraServiceConfig,
+        "tunnelAuthToken",
         String
       );
     }

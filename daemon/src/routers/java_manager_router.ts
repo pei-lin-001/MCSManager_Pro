@@ -17,6 +17,20 @@ routerApp.on("java_manager/list", async (ctx) => {
   protocol.response(ctx, javaManager.list());
 });
 
+routerApp.on("java_manager/ensure", async (ctx, data) => {
+  try {
+    const versionRaw = data?.version ?? data?.javaVersion ?? data?.major;
+    const version = Number(versionRaw);
+    if (!Number.isFinite(version) || version < 8) {
+      throw new Error(`Invalid Java version: ${String(versionRaw)}`);
+    }
+    const result = await javaManager.ensureJava(version);
+    protocol.response(ctx, result);
+  } catch (error: unknown) {
+    protocol.responseError(ctx, error instanceof Error ? error : new Error(String(error)));
+  }
+});
+
 routerApp.on("java_manager/add", async (ctx, data) => {
   const info = new JavaInfo(data.name, Date.now());
 

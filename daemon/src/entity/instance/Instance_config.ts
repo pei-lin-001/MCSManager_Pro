@@ -104,6 +104,15 @@ export default class InstanceConfig implements IGlobalInstanceConfig {
 
   public extraServiceConfig = {
     openFrpTunnelId: "",
-    openFrpToken: ""
+    openFrpToken: "",
+    // Generic FRP tunnel (self-hosted frps first)
+    tunnelEnabled: false,
+    tunnelUseGlobal: true,
+    tunnelProvider: "frp",
+    tunnelLocalPort: 0,
+    tunnelRemotePort: 0,
+    tunnelServerAddr: "",
+    tunnelServerPort: 0,
+    tunnelAuthToken: ""
   };
 }

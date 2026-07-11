@@ -159,7 +159,6 @@ function parseChatBody(body: unknown): {
   history: AiChatMessage[];
   includeLog: boolean;
   thinkingEffort?: AiThinkingEffort;
-  scene?: "terminal" | "mod_library";
 } {
   if (!isRecord(body)) {
     throw new Error("Invalid request body");
@@ -176,16 +175,13 @@ function parseChatBody(body: unknown): {
   if (message.length > 4000) {
     throw new Error("Message is too long");
   }
-  const sceneRaw = readString(body.scene).trim();
-  const scene = sceneRaw === "mod_library" ? "mod_library" : sceneRaw === "terminal" ? "terminal" : undefined;
   return {
     daemonId,
     instanceUuid,
     message,
     history: parseHistory(body.history),
     includeLog: body.includeLog !== false,
-    thinkingEffort: parseThinkingEffort(body.thinkingEffort),
-    scene
+    thinkingEffort: parseThinkingEffort(body.thinkingEffort)
   };
 }
 
@@ -271,7 +267,6 @@ router.post(
       history: parsed.history,
       includeLog: parsed.includeLog,
       thinkingEffort: parsed.thinkingEffort,
-      scene: parsed.scene,
       operatorName: ctx.session?.["userName"],
       operatorIp: ctx.ip
     });

@@ -70,7 +70,6 @@ export interface AiProposedAction {
   title?: string;
 }
 
-export type AiChatScene = "terminal" | "mod_library";
 
 export interface AiChatRequest {
   daemonId: string;
@@ -80,8 +79,6 @@ export interface AiChatRequest {
   includeLog?: boolean;
   // Optional per-request override. Falls back to panel AI settings.
   thinkingEffort?: AiThinkingEffort;
-  // Page context: terminal diagnosis vs mod library assistant.
-  scene?: AiChatScene;
   operatorName?: string;
   operatorIp?: string;
 }
@@ -555,26 +552,103 @@ function resolveThinkingEffort(
   return "medium";
 }
 
-function extractJsonObject(text: string): Record<string, unknown> | null {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1]?.trim() || text.trim();
+function tryParseJsonRecord(candidate: string): Record<string, unknown> | null {
+  const raw = String(candidate || "").trim();
+  if (!raw) return null;
 
-  try {
-    const parsed: unknown = JSON.parse(candidate);
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    const start = candidate.indexOf("{");
-    const end = candidate.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        const parsed: unknown = JSON.parse(candidate.slice(start, end + 1));
-        return isRecord(parsed) ? parsed : null;
-      } catch {
-        return null;
+  const attempts = [
+    raw,
+    // Common model issues: trailing commas before } or ]
+    raw.replace(/,\s*([}\]])/g, "$1"),
+    // Smart quotes
+    raw.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+  ];
+
+  for (const item of attempts) {
+    try {
+      const parsed: unknown = JSON.parse(item);
+      if (isRecord(parsed)) return parsed;
+    } catch {
+      // continue
+    }
+  }
+  return null;
+}
+
+function extractBalancedJsonObjects(text: string): string[] {
+  const input = String(text || "");
+  const out: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+      continue;
+    }
+    if (ch === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        out.push(input.slice(start, i + 1));
+        start = -1;
       }
     }
-    return null;
   }
+  return out;
+}
+
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const source = String(text || "").trim();
+  if (!source) return null;
+
+  // Prefer fenced json blocks first.
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/gi;
+  const fenceBlocks: string[] = [];
+  let fenceMatch: RegExpExecArray | null;
+  while ((fenceMatch = fenceRegex.exec(source)) !== null) {
+    if (fenceMatch[1]) fenceBlocks.push(fenceMatch[1]);
+  }
+  for (let i = fenceBlocks.length - 1; i >= 0; i--) {
+    const block = fenceBlocks[i] || "";
+    const parsed = tryParseJsonRecord(block);
+    if (parsed && ("reply" in parsed || "actions" in parsed)) return parsed;
+    if (parsed) return parsed;
+  }
+
+  // Direct parse whole payload.
+  const direct = tryParseJsonRecord(source);
+  if (direct && ("reply" in direct || "actions" in direct)) return direct;
+  if (direct) return direct;
+
+  // Scan balanced objects and pick the best candidate (prefer ones with actions/reply).
+  const objects = extractBalancedJsonObjects(source);
+  let fallback: Record<string, unknown> | null = null;
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const parsed = tryParseJsonRecord(objects[i]);
+    if (!parsed) continue;
+    if ("reply" in parsed || "actions" in parsed) return parsed;
+    if (!fallback) fallback = parsed;
+  }
+  return fallback;
 }
 
 function parseModelPayload(content: string): { reply: string; actions: AiProposedAction[] } {
@@ -703,7 +777,7 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "This is a personal server environment for the operator and friends, not a commercial multi-tenant product.",
     "",
     "# MCSManager architecture you must understand",
-    "- frontend: Vue web UI. The operator may chat with you from the instance terminal page or the Mod Library page.",
+    "- frontend: Vue web UI. The operator chats with you from the instance terminal page.",
     "- panel: control plane (users, permissions, APIs, AI orchestration). You run here.",
     "- daemon: worker node that really starts/stops processes, Docker containers, files, and terminal I/O.",
     "- One panel can manage multiple daemons (nodes). Every instance is identified by daemonId + instanceUuid.",
@@ -820,6 +894,8 @@ function buildSystemPrompt(config: AiConfig, thinkingEffort: AiThinkingEffort): 
     "- For command actions, command must be whitelist-safe and without shell chaining.",
     "- For file actions, use instance-relative paths only.",
     "- Prefer raw JSON only. Do not wrap the whole response in markdown fences.",
+    "- CRITICAL: If reply mentions a one-click button / 一键修复 / click below, actions[] MUST be non-empty. Never claim a button exists without providing actions.",
+    "- Prefer one action_chain when multiple steps are needed, so the UI shows a single confirm button.",
     "- Put reasoning only into provider thinking channels if available; never dump chain-of-thought into reply.",
     extra
   ].join("\n");
@@ -1230,22 +1306,12 @@ async function prepareChat(
   );
 
   const history = Array.isArray(req.history) ? req.history.slice(-12) : [];
-  const scene = req.scene === "mod_library" ? "mod_library" : "terminal";
-  const sceneHint =
-    scene === "mod_library"
-      ? [
-          "Current UI scene: Mod Library page.",
-          "Prioritize searching / recommending / installing mods and plugins for the selected instance.",
-          "When the operator asks to install something, prefer proposing install_mod actions.",
-          "Include gameVersion/loader/projectType when you can infer them from context or the question.",
-          "Do not propose open/stop/restart unless the operator explicitly asks for server power control."
-        ].join("\n")
-      : [
-          "Current UI scene: Instance terminal page.",
-          "Prioritize diagnosis, logs, start/stop/restart, file fixes and safe console commands.",
-          "For failures, prefer one action_chain button (auto repair) instead of only text advice.",
-          "You may still propose install_mod if the operator clearly asks to install a mod/plugin."
-        ].join("\n");
+  const sceneHint = [
+    "Current UI scene: Instance terminal page.",
+    "Prioritize diagnosis, logs, start/stop/restart, file fixes and safe console commands.",
+    "For failures, prefer one action_chain button (auto repair) instead of only text advice.",
+    "You may still propose install_mod if the operator clearly asks to install a mod/plugin."
+  ].join("\n");
 
   const messages: AiChatMessage[] = [
     { role: "system", content: buildSystemPrompt(config, thinkingEffort) },
@@ -1263,6 +1329,65 @@ async function prepareChat(
   return { config, messages, snapshot, includeLog, thinkingEffort };
 }
 
+function synthesizeFallbackActions(
+  reply: string,
+  snapshot: InstanceContextSnapshot
+): AiProposedAction[] {
+  const text = `${reply}`.toLowerCase();
+  const mentionsButton =
+    /一键|按钮|点击下方|click (the )?(button|below)|one-?click|action button|修复按钮|执行计划/.test(
+      reply
+    ) ||
+    /fix|repair|crash|eula|offline|启动|崩溃|无法启动|起不来|报错|error|exception|mod|插件/.test(
+      text
+    );
+
+  if (!mentionsButton) return [];
+
+  const steps: AiProposedAction[] = [
+    {
+      type: "get_logs",
+      reason: "Collect latest terminal logs before applying repairs",
+      maxChars: 12000
+    }
+  ];
+
+  // EULA is a very common silent blocker.
+  if (/eula|最终用户|用户协议/.test(text) || /eula=false/i.test(snapshot.logText || "")) {
+    steps.push({
+      type: "accept_eula",
+      reason: "Accept Minecraft EULA so the server can boot"
+    });
+  }
+
+  if (snapshot.status === 3) {
+    steps.push({
+      type: "restart",
+      reason: "Restart the running instance after applying checks/fixes"
+    });
+  } else if (snapshot.status === 0 || snapshot.status === 1) {
+    steps.push({
+      type: "open",
+      reason: "Start the instance after collecting logs / applying fixes"
+    });
+  } else {
+    steps.push({
+      type: "open",
+      reason: "Attempt to start the instance"
+    });
+  }
+
+  return [
+    {
+      type: "action_chain",
+      title: "One-click repair",
+      stopOnError: false,
+      reason: "Auto-generated because the model mentioned a fix but returned no executable actions",
+      steps
+    }
+  ];
+}
+
 function finalizeChatResult(
   config: AiConfig,
   snapshot: InstanceContextSnapshot,
@@ -1272,9 +1397,23 @@ function finalizeChatResult(
   providerResult: ProviderChatResult
 ): AiChatResponse {
   const parsed = parseModelPayload(providerResult.content || "");
-  const actions = config.allowActions ? parsed.actions : [];
-  const reply = parsed.reply || providerResult.content || "No response from model.";
+  let actions = config.allowActions ? parsed.actions : [];
+  let reply = parsed.reply || providerResult.content || "No response from model.";
   const thinking = config.showThinking ? providerResult.thinking || "" : "";
+
+  // Models often claim "there is a one-click button" while returning empty/invalid actions[].
+  // Synthesize a safe repair chain so the UI always has something actionable.
+  if (config.allowActions && actions.length === 0) {
+    const fallback = synthesizeFallbackActions(reply, snapshot);
+    if (fallback.length > 0) {
+      actions = fallback;
+      if (!/一键|按钮|button|one-?click/i.test(reply)) {
+        reply = `${reply}
+
+> 下方提供了可确认的一键修复按钮。`;
+      }
+    }
+  }
 
   return {
     reply,
@@ -1685,11 +1824,34 @@ export async function executeAiAction(req: AiExecuteRequest): Promise<AiExecuteR
   } else if (type === "command") {
     const command = String(action.command || "").trim();
     validateAction({ type: "command", command, reason: action.reason }, true);
-    result = await remote.request("instance/command", {
+    const sendResult = await remote.request("instance/command", {
       instanceUuid: req.instanceUuid,
       command
     });
-    message = `Command sent: ${command}`;
+
+    // Pull console tail so the operator can see command feedback in the AI panel.
+    let consoleTail = "";
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const rawLog = await remote.request("instance/outputlog", {
+        instanceUuid: req.instanceUuid
+      });
+      const full = typeof rawLog === "string" ? rawLog : String(rawLog ?? "");
+      const lines = full.split(/\r?\n/).filter((line) => line.trim().length > 0);
+      consoleTail = lines.slice(-40).join("\n");
+    } catch {
+      consoleTail = "";
+    }
+
+    result = {
+      command,
+      sendResult,
+      consoleTail,
+      capturedAt: Date.now()
+    };
+    message = consoleTail
+      ? `Command sent: ${command}. Console feedback captured.`
+      : `Command sent: ${command}`;
   } else if (type === "install_mod") {
     const resolved = await resolveInstallModAction(action);
     result = await remote.request("instance/mods/install", {
