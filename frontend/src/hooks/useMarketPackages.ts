@@ -3,6 +3,7 @@ import { quickInstallListAddr } from "@/services/apis/instance";
 import { reportErrorMsg } from "@/tools/validator";
 import type { QuickStartPackages } from "@/types";
 import { computed, reactive, ref } from "vue";
+import { upgradeInsecureUrl } from "@/tools/url";
 import type { ComputedNodeInfo } from "./useOverviewInfo";
 
 // Constants
@@ -277,7 +278,11 @@ export function useMarketPackages(options: UseMarketPackagesOptions = {}) {
     try {
       const list = await getQuickInstallListAddr();
       languageOptions.value = list.value?.languages || [];
-      packages.value = list.value?.packages || [];
+      const rawPackages = list.value?.packages || [];
+      packages.value = rawPackages.map((pkg) => ({
+        ...pkg,
+        image: upgradeInsecureUrl(pkg.image)
+      }));
     } catch (err: any) {
       console.error(err.message);
       return reportErrorMsg(err.message);

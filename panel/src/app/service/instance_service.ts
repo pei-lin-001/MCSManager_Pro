@@ -172,6 +172,32 @@ export function checkInstanceAdvancedParams(
 }
 
 /**
+ * Market templates often ship package cover images as http://...
+ * When the panel is served over HTTPS, browsers block those as mixed content.
+ * Upgrade known upgradeable absolute http URLs to https so cards render.
+ * Local/custom paths and already-https URLs are left untouched.
+ */
+export function upgradeInsecureUrl(url?: string | null): string {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https:\/\//i.test(raw)) return raw;
+  if (/^http:\/\//i.test(raw)) return raw.replace(/^http:\/\//i, "https://");
+  return raw;
+}
+
+export function sanitizeMarketPackageImages<T extends { packages?: Array<{ image?: string }> }>(
+  data: T
+): T {
+  if (!data || !Array.isArray(data.packages)) return data;
+  for (const pkg of data.packages) {
+    if (pkg && typeof pkg.image === "string") {
+      pkg.image = upgradeInsecureUrl(pkg.image);
+    }
+  }
+  return data;
+}
+
+/**
  * Get the app market list
  * @returns IQuickStartTemplate
  */
@@ -185,7 +211,9 @@ export async function getAppMarketList() {
     const fileName = presetUrl?.split(SAVE_DIR_PATH)[1];
     const filePath = path.join(filesDir, fileName ?? "");
     if (fs.existsSync(filePath)) {
-      return JSON.parse(await fs.readFile(filePath, "utf-8")) as IQuickStartTemplate;
+      return sanitizeMarketPackageImages(
+        JSON.parse(await fs.readFile(filePath, "utf-8")) as IQuickStartTemplate
+      );
     } else {
       throw new Error(`Request failed, status: 404`);
     }
@@ -200,7 +228,7 @@ export async function getAppMarketList() {
       // Use cache
       if (fileAge < CACHE_DURATION) {
         const cachedData = await fs.readFile(MARKET_CACHE_FILE_PATH, "utf-8");
-        return JSON.parse(cachedData) as IQuickStartTemplate;
+        return sanitizeMarketPackageImages(JSON.parse(cachedData) as IQuickStartTemplate);
       }
     } catch (error) {
       // Cache file doesn't exist, continue to fetch new data
@@ -210,6 +238,9 @@ export async function getAppMarketList() {
       url: presetUrl,
       method: "GET"
     });
-    return presetConfig;
+    const sanitized = sanitizeMarketPackageImages(presetConfig);
+    // Persist upgraded URLs so subsequent cache hits stay HTTPS-safe.
+    fs.writeFile(MARKET_CACHE_FILE_PATH, JSON.stringify(sanitized), "utf-8").catch(() => undefined);
+    return sanitized;
   }
 }

@@ -10,6 +10,7 @@ import InstallOptionButton from "@/widgets/market/InstallOptionButton.vue";
 import { useMarketTour } from "@/widgets/market/useMarketTour";
 import CreateInstanceForm from "@/widgets/setupApp/CreateInstanceForm.vue";
 import McPreset from "@/widgets/setupApp/McPreset.vue";
+import McPreciseInstaller from "@/widgets/setupApp/McPreciseInstaller.vue";
 import {
   AppstoreAddOutlined,
   BlockOutlined,
@@ -128,6 +129,9 @@ const openEditor = () => {
           </a-col>
         </a-row>
       </div>
+    </div>
+    <div style="margin-bottom: 28px">
+      <McPreciseInstaller />
     </div>
     <div>
       <div ref="step3Ref">
