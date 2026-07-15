@@ -4,7 +4,6 @@ import {
   type SidebarAppDropdownEntry,
   type SidebarEntry
 } from "@/hooks/useHeaderMenus";
-import { useAppConfigStore } from "@/stores/useAppConfigStore";
 import {
   ApartmentOutlined,
   AppstoreOutlined,
@@ -16,15 +15,16 @@ import {
   ShopOutlined,
   ShoppingOutlined,
   TeamOutlined,
+  TrophyOutlined,
   UserOutlined
 } from "@ant-design/icons-vue";
 import type { Key } from "ant-design-vue/es/table/interface";
 import type { Component } from "vue";
 import { useRoute } from "vue-router";
+import BrandMark from "@/components/BrandMark.vue";
 
 const route = useRoute();
 const { sidebarItems, handleToPage } = useHeaderMenus();
-const { logoImage } = useAppConfigStore();
 
 /** Whether route menu item is active (current path equals or is child of this path) */
 const isRouteActive = (path: string): boolean => {
@@ -42,6 +42,7 @@ const routePathIcons: Record<string, Component> = {
   "/node": ApartmentOutlined,
   "/settings": SettingOutlined,
   "/customer": UserOutlined,
+  "/leaderboard": TrophyOutlined,
   "/login": LoginOutlined,
   "/shop": ShoppingOutlined,
   "/_open_page": LinkOutlined
@@ -65,7 +66,7 @@ const onAppDropdownClick = (item: SidebarAppDropdownEntry, info: { key: Key }) =
 <template>
   <aside class="left-sidebar">
     <a href="." class="logo">
-      <img :src="logoImage" />
+      <BrandMark size="md" />
     </a>
     <nav class="sidebar-menu">
       <template v-for="(entry, index) in sidebarItems" :key="getItemKey(entry, index)">
@@ -115,14 +116,12 @@ const onAppDropdownClick = (item: SidebarAppDropdownEntry, info: { key: Key }) =
 
 <style lang="scss" scoped>
 .logo {
-  display: block;
-  text-align: center;
-  padding-top: 10px;
+  display: flex;
+  justify-content: center;
+  padding-top: 14px;
   padding-bottom: 18px;
-  img {
-    height: 20px;
-    animation: MasterLogoWobble 10s ease infinite;
-  }
+  text-decoration: none;
+  color: inherit;
 }
 
 .left-sidebar:hover {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CardPanel from "@/components/CardPanel.vue";
-import { router } from "@/config/router";
+import { homePathByPermission, router } from "@/config/router";
 import { t } from "@/lang/i18n";
 import { ssoBindCurrent, ssoBindLogin, userInfoApi } from "@/services/apis";
 import { useAppStateStore } from "@/stores/useAppStateStore";
@@ -16,7 +16,7 @@ import {
 import { message } from "ant-design-vue";
 import { onMounted, reactive, ref } from "vue";
 
-const { updateUserInfo, isAdmin } = useAppStateStore();
+const { updateUserInfo, state } = useAppStateStore();
 const { execute: bindExecute } = ssoBindLogin();
 const { execute: bindCurrentExecute } = ssoBindCurrent();
 const { execute: fetchUserInfo } = userInfoApi();
@@ -52,11 +52,7 @@ const handleBindCurrent = async () => {
     step.value = 2;
     await updateUserInfo();
     await sleep(1000);
-    if (isAdmin.value) {
-      router.push({ path: "/" });
-    } else {
-      router.push({ path: "/customer" });
-    }
+    router.push({ path: homePathByPermission(state.userInfo?.permission) });
   } catch (err: any) {
     step.value = 0;
     reportErrorMsg(err);
@@ -87,11 +83,7 @@ const handleBind = async () => {
     step.value = 2;
     await updateUserInfo();
     await sleep(1000);
-    if (isAdmin.value) {
-      router.push({ path: "/" });
-    } else {
-      router.push({ path: "/customer" });
-    }
+    router.push({ path: homePathByPermission(state.userInfo?.permission) });
   } catch (err: any) {
     step.value = 0;
     reportErrorMsg(err);

@@ -12,6 +12,8 @@ import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.passive.AbstractHorseEntity;
@@ -214,15 +216,11 @@ public class MetricsService {
             p.dirtyAt = p.lastActivityMs;
         });
 
+        // Single kill path (do not also credit in onDeath — avoids double count)
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((world, entity, killed) -> {
             if (!started) return;
             if (!(entity instanceof ServerPlayerEntity attacker)) return;
-            PlayerProfile ap = profiles.get(attacker.getUuid());
-            if (ap == null) return;
-            if (killed instanceof PlayerEntity) ap.playerKills += 1;
-            else ap.mobKills += 1;
-            ap.lastActivityMs = System.currentTimeMillis();
-            ap.dirtyAt = ap.lastActivityMs;
+            creditKill(attacker, killed);
         });
     }
 
@@ -448,16 +446,33 @@ public class MetricsService {
                 vp.dirtyAt = now;
             }
         }
-        Entity killer = src.getAttacker();
-        if (killer instanceof ServerPlayerEntity attacker) {
-            PlayerProfile ap = profiles.get(attacker.getUuid());
-            if (ap != null) {
-                if (dead instanceof PlayerEntity) ap.playerKills += 1;
-                else ap.mobKills += 1;
-                ap.lastActivityMs = now;
-                ap.dirtyAt = now;
-            }
+        // Kill credit is handled only by AFTER_KILLED_OTHER_ENTITY.
+    }
+
+
+    private void creditKill(ServerPlayerEntity attacker, Entity killed) {
+        PlayerProfile ap = profiles.get(attacker.getUuid());
+        if (ap == null) return;
+        if (killed instanceof PlayerEntity) {
+            ap.playerKills += 1;
+        } else {
+            ap.mobKills += 1;
+            if (ap.mobKillsByType == null) ap.mobKillsByType = new HashMap<>();
+            String typeId = entityTypeId(killed);
+            ap.mobKillsByType.merge(typeId, 1L, Long::sum);
         }
+        long now = System.currentTimeMillis();
+        ap.lastActivityMs = now;
+        ap.dirtyAt = now;
+    }
+
+    private static String entityTypeId(Entity entity) {
+        try {
+            Identifier id = Registries.ENTITY_TYPE.getId(entity.getType());
+            if (id != null) return id.toString();
+        } catch (Exception ignored) {
+        }
+        return "unknown";
     }
 
     private Path profilePath(UUID id) {
@@ -471,6 +486,7 @@ public class MetricsService {
                 PlayerProfile p = gson.fromJson(r, PlayerProfile.class);
                 if (p != null) {
                     if (p.dimensionTimeMs == null) p.dimensionTimeMs = new HashMap<>();
+                    if (p.mobKillsByType == null) p.mobKillsByType = new HashMap<>();
                     if (p.uuid == null) p.uuid = id.toString();
                     if (p.name == null) p.name = name;
                     return p;
@@ -490,6 +506,7 @@ public class MetricsService {
                     PlayerProfile p = gson.fromJson(r, PlayerProfile.class);
                     if (p == null || p.uuid == null) continue;
                     if (p.dimensionTimeMs == null) p.dimensionTimeMs = new HashMap<>();
+                    if (p.mobKillsByType == null) p.mobKillsByType = new HashMap<>();
                     p.online = false;
                     profiles.put(UUID.fromString(p.uuid), p);
                 } catch (Exception ignored) {
@@ -536,6 +553,7 @@ public class MetricsService {
         m.put("deaths", p.deaths);
         m.put("playerKills", p.playerKills);
         m.put("mobKills", p.mobKills);
+        m.put("mobKillsByType", p.mobKillsByType != null ? p.mobKillsByType : Map.of());
         m.put("damageDealt", p.damageDealt);
         m.put("damageTaken", p.damageTaken);
         m.put("blocksBroken", p.blocksBroken);
@@ -578,7 +596,7 @@ public class MetricsService {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("schema", 2);
         root.put("mod", "mcsm_metrics");
-        root.put("modVersion", "0.2.1");
+        root.put("modVersion", "0.2.2");
         root.put("loader", "fabric");
         root.put("mc", "1.20.4");
         root.put("ts", now);

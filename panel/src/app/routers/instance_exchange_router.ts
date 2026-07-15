@@ -23,7 +23,7 @@ const router = new Router({ prefix: "/exchange" });
 
 router.post(
   "/",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: {
       request_action: String

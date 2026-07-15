@@ -80,7 +80,7 @@ router.put("/settings", permission({ level: ROLE.ADMIN }), async (ctx) => {
   ctx.body = { ...toPublicFrpConfig(getFrpConfig()), push };
 });
 
-router.get("/traffic", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/traffic", permission({ level: ROLE.MANAGER }), async (ctx) => {
   // aggregate from all daemons
   const summaries: any[] = [];
   for (const { id, service } of eachRemoteService()) {
@@ -169,7 +169,7 @@ router.get("/traffic", permission({ level: ROLE.ADMIN }), async (ctx) => {
   };
 });
 
-router.get("/tunnels", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/tunnels", permission({ level: ROLE.MANAGER }), async (ctx) => {
   const all: any[] = [];
   for (const { id, service } of eachRemoteService()) {
     try {

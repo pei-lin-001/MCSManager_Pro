@@ -54,7 +54,7 @@ const props = defineProps<{
   card: LayoutCard;
 }>();
 
-const { isAdmin, state } = useAppStateStore();
+const { isAdmin, isManager, state } = useAppStateStore();
 
 const { getMetaOrRouteValue } = useLayoutCardTools(props.card);
 
@@ -146,7 +146,7 @@ const btns = computed(() => {
       click: () => {
         toPage({ path: "/instances/terminal/files" });
       },
-      condition: () => state.settings.canFileManager || isAdmin.value
+      condition: () => state.settings.canFileManager || isManager.value
     },
     {
       title: t("TXT_CODE_MOD_MANAGER"),
@@ -162,7 +162,7 @@ const btns = computed(() => {
           type.startsWith("minecraft/bedrock") ||
           type === TYPE_MINECRAFT_MCDR;
         if (!isMC) return false;
-        const hasPermission = state.settings.canFileManager || isAdmin.value;
+        const hasPermission = state.settings.canFileManager || isManager.value;
         if (!hasPermission) return false;
         if (!foldersLoaded.value) return false;
         return folders.value && folders.value.length > 0;
@@ -221,7 +221,7 @@ const btns = computed(() => {
     {
       title: t("TXT_CODE_4f34fc28"),
       icon: AppstoreAddOutlined,
-      condition: () => isAdmin.value,
+      condition: () => isManager.value,
       click: () => {
         instanceDetailsDialog.value?.openDialog();
       }
@@ -241,7 +241,7 @@ const btns = computed(() => {
       title: t("TXT_CODE_4f34fc28"),
       icon: AppstoreAddOutlined,
       condition: () =>
-        !isAdmin.value &&
+        !isManager.value &&
         instanceInfo.value?.config.processType === "docker" &&
         state.settings.allowChangeCmd,
       click: () => {

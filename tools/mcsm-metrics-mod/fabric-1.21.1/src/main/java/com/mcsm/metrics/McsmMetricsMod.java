@@ -19,7 +19,7 @@ public class McsmMetricsMod implements DedicatedServerModInitializer {
             }
             service = new MetricsService(server);
             service.start();
-            LOGGER.info("MCSM Metrics Fabric v0.2.1 started");
+            LOGGER.info("MCSM Metrics Fabric v0.2.2 started");
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             if (service != null) {

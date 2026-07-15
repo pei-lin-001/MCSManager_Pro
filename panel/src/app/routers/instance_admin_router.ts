@@ -27,7 +27,7 @@ const router = new Router({ prefix: "/instance" });
 // Get the details of an instance
 router.get(
   "/",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -50,7 +50,7 @@ router.get(
 // create instance
 router.post(
   "/",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String } }),
 
   async (ctx) => {
@@ -77,7 +77,7 @@ router.post(
 // upload the file when creating the instance
 router.post(
   "/upload",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, upload_dir: String } }),
   async (ctx) => {
     try {
@@ -124,7 +124,7 @@ router.post(
 // Update instance information (manage users)
 router.put(
   "/",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -154,7 +154,7 @@ router.put(
 // delete instance
 router.delete(
   "/",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String }, body: { uuids: Object, deleteFile: Boolean } }),
   async (ctx) => {
     try {
@@ -194,7 +194,7 @@ router.delete(
 
 // [Top-level Permission]
 // Open instance routing in batches
-router.post("/multi_open", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.post("/multi_open", permission({ level: ROLE.MANAGER }), async (ctx) => {
   try {
     const instances = ctx.request.body;
     multiOperationForwarding(instances, async (daemonId: string, instanceUuids: string[]) => {
@@ -224,7 +224,7 @@ router.post("/multi_open", permission({ level: ROLE.ADMIN }), async (ctx) => {
 
 // [Top-level Permission]
 //Close instance routing in batches
-router.post("/multi_stop", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.post("/multi_stop", permission({ level: ROLE.MANAGER }), async (ctx) => {
   try {
     const instances = ctx.request.body;
     multiOperationForwarding(instances, async (daemonId: string, instanceUuids: string[]) => {
@@ -254,7 +254,7 @@ router.post("/multi_stop", permission({ level: ROLE.ADMIN }), async (ctx) => {
 
 // [Top-level Permission]
 // batch terminate instance routing
-router.post("/multi_kill", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.post("/multi_kill", permission({ level: ROLE.MANAGER }), async (ctx) => {
   try {
     const instances = ctx.request.body;
     multiOperationForwarding(instances, async (daemonId: string, instanceUuids: string[]) => {
@@ -282,7 +282,7 @@ router.post("/multi_kill", permission({ level: ROLE.ADMIN }), async (ctx) => {
 
 // [Top-level Permission]
 // restart instance routing in batches
-router.post("/multi_restart", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.post("/multi_restart", permission({ level: ROLE.MANAGER }), async (ctx) => {
   try {
     const instances = ctx.request.body;
     multiOperationForwarding(instances, async (daemonId: string, instanceUuids: string[]) => {
@@ -310,7 +310,7 @@ router.post("/multi_restart", permission({ level: ROLE.ADMIN }), async (ctx) => 
 
 // [Top-level Permission]
 // Get quick install list
-router.get("/quick_install_list", permission({ level: ROLE.USER }), async (ctx) => {
+router.get("/quick_install_list", permission({ level: ROLE.MANAGER }), async (ctx) => {
   if (systemConfig?.allowUsePreset === false && !isTopPermissionByUuid(getUserUuid(ctx))) {
     ctx.status = 403;
     ctx.body = new Error($t("TXT_CODE_b5a47731"));
@@ -374,7 +374,7 @@ router.get("/quick_install_list", permission({ level: ROLE.USER }), async (ctx) 
 // forward request
 router.all(
   "/forward",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { target: String } }),
   async (ctx) => {
     const ADDR = String(ctx.query.target);

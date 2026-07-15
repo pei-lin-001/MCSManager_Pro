@@ -49,7 +49,7 @@ router.use(async (ctx, next) => {
   }
 });
 
-router.get("/mc_versions", speedLimit(0.5), permission({ level: ROLE.USER }), async (ctx) => {
+router.get("/mc_versions", speedLimit(0.5), permission({ level: ROLE.MANAGER }), async (ctx) => {
   try {
     const result = await modManagerService.getMinecraftVersions();
     ctx.body = result;
@@ -61,7 +61,7 @@ router.get("/mc_versions", speedLimit(0.5), permission({ level: ROLE.USER }), as
 router.get(
   "/list",
   speedLimit(0.5),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String }
   }),
@@ -89,7 +89,7 @@ router.get(
 router.get(
   "/info",
   speedLimit(0.5),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { hash: String }
   }),
@@ -107,7 +107,7 @@ router.get(
 
 router.get(
   "/search",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   requestConcurrencyLimiter("mod_manager:search"),
   async (ctx) => {
     try {
@@ -144,7 +144,7 @@ router.get(
 router.get(
   "/versions",
   speedLimit(1),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { projectId: String, source: String }
   }),
@@ -162,7 +162,7 @@ router.get(
 
 router.post(
   "/download",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   speedLimit(5),
   requestConcurrencyLimiter("mod_manager:download"),
   validator({
@@ -212,7 +212,7 @@ router.post(
 router.post(
   "/stop_transfer",
   speedLimit(1),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: { daemonId: String, uuid: String, fileName: String, type: String }
   }),
@@ -246,7 +246,7 @@ router.post(
 router.get(
   "/config_files",
   speedLimit(0.5),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String, modId: String, type: String, fileName: String }
   }),
@@ -270,7 +270,7 @@ router.get(
 router.post(
   "/toggle",
   speedLimit(0.5),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: { daemonId: String, uuid: String, fileName: String }
   }),
@@ -292,7 +292,7 @@ router.post(
 router.post(
   "/delete",
   speedLimit(1),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: { daemonId: String, uuid: String, fileName: String }
   }),
@@ -314,7 +314,7 @@ router.post(
 router.post(
   "/batch_info",
   speedLimit(0.1),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: { hashes: Array }
   }),

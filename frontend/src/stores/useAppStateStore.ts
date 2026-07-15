@@ -36,8 +36,12 @@ export const useAppStateStore = createGlobalState(() => {
     return reactive(tmp);
   };
 
-  const isAdmin = computed(() => state.userInfo?.permission === 10);
-  const isLogged = computed(() => Number(state.userInfo?.permission) > 0);
+  const permission = computed(() => Number(state.userInfo?.permission ?? 0));
+  /** Super admin (10+) */
+  const isAdmin = computed(() => permission.value >= 10);
+  /** Manager or super admin (5+) */
+  const isManager = computed(() => permission.value >= 5);
+  const isLogged = computed(() => permission.value > 0);
 
   const updateUserInfo = async (userInfo?: LoginUserInfo) => {
     try {
@@ -77,7 +81,9 @@ export const useAppStateStore = createGlobalState(() => {
     updateUserInfo,
     updatePanelStatus,
     isAdmin,
+    isManager,
     isLogged,
+    permission,
     state
   };
 });

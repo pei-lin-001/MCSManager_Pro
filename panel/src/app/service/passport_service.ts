@@ -1,3 +1,4 @@
+import { resolveRole } from "./permission_service";
 import Koa from "koa";
 import { GlobalVariable } from "mcsmanager-common";
 import { authenticator } from "otplib";
@@ -57,7 +58,7 @@ export function loginSuccess(ctx: Koa.ParameterizedContext, userName: string) {
   ctx.session["login"] = true;
   ctx.session["userName"] = userName;
   ctx.session["uuid"] = user.uuid;
-  ctx.session["role"] = user.permission === 10 ? ROLE.ADMIN : ROLE.USER;
+  ctx.session["role"] = resolveRole(user.permission);
   ctx.session["token"] = timeUuid();
   ctx.session.save();
 

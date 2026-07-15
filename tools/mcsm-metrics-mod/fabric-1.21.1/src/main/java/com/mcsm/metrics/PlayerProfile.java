@@ -24,6 +24,8 @@ public class PlayerProfile {
     public long deaths;
     public long playerKills;
     public long mobKills;
+    /** entity type id -> kill count, e.g. minecraft:zombie */
+    public Map<String, Long> mobKillsByType = new HashMap<>();
 
     public long damageDealt;
     public long damageTaken;

@@ -26,7 +26,7 @@ public class McsmMetricsMod {
         }
         service = new MetricsService(event.getServer());
         service.start();
-        LOGGER.info("MCSM Metrics v0.2.0 started (live JSON + player profiles)");
+        LOGGER.info("MCSM Metrics v0.2.2 started (live JSON + player profiles)");
     }
 
     @SubscribeEvent

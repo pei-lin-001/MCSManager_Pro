@@ -34,6 +34,8 @@ export function getFrontendLayoutConfig(): string {
 
     // Ensure player monitor sits on terminal root under performance.
     if (ensureTerminalPlayerMonitor(currentLayoutConfig)) changed = true;
+    if (ensureCustomerWelcome(currentLayoutConfig)) changed = true;
+    if (ensureLeaderboardPage(currentLayoutConfig)) changed = true;
 
     if (changed) {
       setFrontendLayoutConfig(currentLayoutConfig);
@@ -41,7 +43,11 @@ export function getFrontendLayoutConfig(): string {
     }
     return layoutConfig as string;
   } else {
-    return JSON.stringify(getDefaultFrontendLayoutConfig());
+    const defaults = getDefaultFrontendLayoutConfig();
+    ensureCustomerWelcome(defaults);
+    ensureLeaderboardPage(defaults);
+    ensureTerminalPlayerMonitor(defaults);
+    return JSON.stringify(defaults);
   }
 }
 
@@ -76,6 +82,107 @@ function ensureTerminalPlayerMonitor(config: IPageLayoutConfig[]): boolean {
 
   page.items.push(card);
   return true;
+}
+
+
+/** Ensure customer page is player-hub only (no instance list/controls). */
+function ensureCustomerWelcome(config: IPageLayoutConfig[]): boolean {
+  const pureCustomerItems = (): ILayoutCard[] => [
+    {
+      id: getRandomId(),
+      type: "UserWelcome",
+      title: t("TXT_CODE_USER_WELCOME_TITLE"),
+      meta: {},
+      width: 12,
+      height: LayoutCardHeight.SMALL,
+      disableDelete: true
+    },
+    {
+      id: getRandomId(),
+      type: "UserPlayerHub",
+      title: t("TXT_CODE_PLAYER_HUB_TITLE"),
+      meta: {},
+      width: 12,
+      height: LayoutCardHeight.AUTO,
+      disableDelete: true
+    }
+  ];
+
+  const page = config.find((item) => item.page === "/customer");
+  if (!page) {
+    config.push({
+      page: "/customer",
+      items: pureCustomerItems()
+    });
+    return true;
+  }
+
+  let changed = false;
+  const blocked = new Set(["UserInstanceList", "UserStatusBlock"]);
+  const before = page.items.length;
+  page.items = page.items.filter((item) => !blocked.has(item.type));
+  if (page.items.length !== before) changed = true;
+
+  if (!page.items.some((item) => item.type === "UserWelcome")) {
+    page.items.unshift({
+      id: getRandomId(),
+      type: "UserWelcome",
+      title: t("TXT_CODE_USER_WELCOME_TITLE"),
+      meta: {},
+      width: 12,
+      height: LayoutCardHeight.SMALL,
+      disableDelete: true
+    });
+    changed = true;
+  }
+  if (!page.items.some((item) => item.type === "UserPlayerHub")) {
+    const welcomeIdx = page.items.findIndex((item) => item.type === "UserWelcome");
+    const card = {
+      id: getRandomId(),
+      type: "UserPlayerHub",
+      title: t("TXT_CODE_PLAYER_HUB_TITLE"),
+      meta: {},
+      width: 12,
+      height: LayoutCardHeight.AUTO,
+      disableDelete: true
+    };
+    if (welcomeIdx >= 0) page.items.splice(welcomeIdx + 1, 0, card);
+    else page.items.unshift(card);
+    changed = true;
+  }
+  return changed;
+}
+
+
+/** Ensure full-server leaderboard page exists for player users. */
+function ensureLeaderboardPage(config: IPageLayoutConfig[]): boolean {
+  const pureItems = (): ILayoutCard[] => [
+    {
+      id: getRandomId(),
+      type: "UserLeaderboard",
+      title: t("TXT_CODE_PLAYER_LB_TITLE"),
+      meta: {},
+      width: 12,
+      height: LayoutCardHeight.AUTO,
+      disableDelete: true
+    }
+  ];
+
+  const page = config.find((item) => item.page === "/leaderboard");
+  if (!page) {
+    config.push({
+      page: "/leaderboard",
+      items: pureItems()
+    });
+    return true;
+  }
+
+  let changed = false;
+  if (!page.items.some((item) => item.type === "UserLeaderboard")) {
+    page.items = pureItems();
+    changed = true;
+  }
+  return changed;
 }
 
 export function setFrontendLayoutConfig(config: IPageLayoutConfig[]) {
@@ -604,55 +711,18 @@ function getDefaultFrontendLayoutConfig(): IPageLayoutConfig[] {
       items: [
         {
           id: getRandomId(),
-          type: "UserStatusBlock",
-          title: t("TXT_CODE_7411336e"),
-          meta: {
-            type: "instance_all"
-          },
-          width: 3,
+          type: "UserWelcome",
+          title: t("TXT_CODE_USER_WELCOME_TITLE"),
+          meta: {},
+          width: 12,
           height: LayoutCardHeight.SMALL,
           disableDelete: true
         },
         {
           id: getRandomId(),
-          type: "UserStatusBlock",
-          title: t("TXT_CODE_f912fadc"),
-          meta: {
-            type: "instance_running"
-          },
-          width: 3,
-          height: LayoutCardHeight.SMALL,
-          disableDelete: true
-        },
-        {
-          id: getRandomId(),
-          type: "UserStatusBlock",
-          title: t("TXT_CODE_15f2e564"),
-          meta: {
-            type: "instance_stop"
-          },
-          width: 3,
-          height: LayoutCardHeight.SMALL,
-          disableDelete: true
-        },
-        {
-          id: getRandomId(),
-          type: "UserStatusBlock",
-          title: t("TXT_CODE_342a04a9"),
-          meta: {
-            type: "instance_error"
-          },
-          width: 3,
-          height: LayoutCardHeight.SMALL,
-          disableDelete: true
-        },
-        {
-          id: getRandomId(),
-          type: "UserInstanceList",
-          title: t("TXT_CODE_d655beec"),
-          meta: {
-            type: "instance_error"
-          },
+          type: "UserPlayerHub",
+          title: t("TXT_CODE_PLAYER_HUB_TITLE"),
+          meta: {},
           width: 12,
           height: LayoutCardHeight.AUTO,
           disableDelete: true

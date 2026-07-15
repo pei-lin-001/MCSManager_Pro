@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import CardPanel from "@/components/CardPanel.vue";
-import { router } from "@/config/router";
+import { homePathByPermission, router } from "@/config/router";
 import { t } from "@/lang/i18n";
 import { loginPageInfo, loginUser, ssoConfig, type SsoPublicConfig } from "@/services/apis";
 import { useAppStateStore } from "@/stores/useAppStateStore";
@@ -32,7 +32,7 @@ const formData = reactive({
 });
 
 const { execute: login } = loginUser();
-const { updateUserInfo, isAdmin, state: appConfig } = useAppStateStore();
+const { updateUserInfo, state: appConfig } = useAppStateStore();
 
 const loginStep = ref(0);
 const is2Fa = ref(false);
@@ -79,13 +79,7 @@ const handleNext = async () => {
 
 const loginSuccess = () => {
   loginStep.value++;
-  if (isAdmin.value) {
-    router.push({
-      path: "/"
-    });
-  } else {
-    router.push({ path: "/customer" });
-  }
+  router.push({ path: homePathByPermission(appConfig.userInfo?.permission) });
 };
 
 const openBuyInstanceDialog = async () => {
@@ -155,7 +149,7 @@ onMounted(async () => {
               {{ props.card?.title ? props.card?.title : t("TXT_CODE_3ba5ad") }}
             </div>
           </a-typography-title>
-          <a-typography-paragraph class="mb-20">
+          <a-typography-paragraph class="mb-20" type="secondary">
             {{ t("TXT_CODE_5b60ad00") }}
           </a-typography-paragraph>
           <div class="account-input-container">
@@ -227,18 +221,14 @@ onMounted(async () => {
               </form>
 
               <div class="mt-24 flex-between align-center">
-                <div v-if="!appConfig.settings.businessMode" class="mcsmanager-link">
+                <div class="mcsmanager-link">
                   <div
                     v-if="pageInfoResult?.loginInfo"
                     class="global-markdown-html"
                     v-html="markdownToHTML(pageInfoResult?.loginInfo || '')"
                   ></div>
-                  Powered by
-                  <a href="https://mcsmanager.com" target="_blank" rel="noopener noreferrer">
-                    MCSManager
-                  </a>
+                  <span v-else class="brand-foot">{{ t("TXT_CODE_PRODUCT_NAME") }}</span>
                 </div>
-                <div v-else></div>
                 <div class="justify-end" style="gap: 10px">
                   <a-button
                     v-if="appConfig.settings.businessMode"
@@ -347,6 +337,11 @@ onMounted(async () => {
     color: var(--color-gray-7) !important;
     text-decoration: underline;
   }
+}
+.brand-foot {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-gray-8);
 }
 .logging-icon {
   animation: opacityAnimation 0.4s;

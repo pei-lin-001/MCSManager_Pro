@@ -28,6 +28,17 @@ export interface IUser {
   open2FA?: boolean;
   ssoSub?: string;
   ssoBound?: boolean;
+  /** Bound Minecraft player name */
+  mcName?: string;
+  /** Bound Minecraft UUID (online or offline) */
+  mcUuid?: string;
+  bindAt?: number;
+  /** Future activity economy */
+  activityPoints?: number;
+  checkIn?: {
+    lastDate?: string;
+    streak?: number;
+  };
 }
 
 export interface ICompleteUser {

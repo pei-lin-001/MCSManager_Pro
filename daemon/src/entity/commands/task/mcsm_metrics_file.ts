@@ -21,6 +21,7 @@ export type McsmPlayerLive = {
   deaths?: number;
   playerKills?: number;
   mobKills?: number;
+  mobKillsByType?: Record<string, number>;
   blocksBroken?: number;
   blocksPlaced?: number;
   distanceTotal?: number;

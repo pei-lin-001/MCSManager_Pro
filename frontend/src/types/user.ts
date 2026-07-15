@@ -20,6 +20,11 @@ export interface BaseUserInfo {
   open2FA: boolean;
   ssoSub: string;
   ssoBound: boolean;
+  mcName?: string;
+  mcUuid?: string;
+  bindAt?: number;
+  activityPoints?: number;
+  checkIn?: { lastDate?: string; streak?: number };
 }
 
 export interface EditUserInfo extends BaseUserInfo {

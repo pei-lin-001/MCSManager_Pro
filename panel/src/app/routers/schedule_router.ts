@@ -28,7 +28,7 @@ router.use(async (ctx, next) => {
 // Get the list of scheduled tasks
 router.get(
   "/",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -51,7 +51,7 @@ router.get(
 // create a scheduled task
 router.post(
   "/",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String },
     body: { name: String, count: Number, time: String, actions: Array, type: Number }
@@ -97,7 +97,7 @@ router.post(
 // delete scheduled task
 router.delete(
   "/",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {

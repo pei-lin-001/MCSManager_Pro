@@ -12,6 +12,7 @@ import {
   ShopOutlined,
   ShoppingOutlined,
   TeamOutlined,
+  TrophyOutlined,
   UserOutlined
 } from "@ant-design/icons-vue";
 import type { Component } from "vue";
@@ -30,6 +31,7 @@ const routePathIcons: Record<string, Component> = {
   "/node": ApartmentOutlined,
   "/settings": SettingOutlined,
   "/customer": UserOutlined,
+  "/leaderboard": TrophyOutlined,
   "/login": LoginOutlined,
   "/shop": ShoppingOutlined,
   "/_open_page": LinkOutlined

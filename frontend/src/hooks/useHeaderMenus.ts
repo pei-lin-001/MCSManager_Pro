@@ -67,7 +67,7 @@ export function useHeaderMenus() {
   const { toPage } = useAppRouters();
   const { setTheme } = useAppConfigStore();
   const { state: appTools } = useAppToolsStore();
-  const { isAdmin, state: appState, isLogged } = useAppStateStore();
+  const { isAdmin, isManager, state: appState, isLogged } = useAppStateStore();
   const { execute } = logoutUser();
 
   const openNewCardDialog = (): void => {
@@ -95,14 +95,15 @@ export function useHeaderMenus() {
         if (containerState.isDesignMode) {
           return metaInfo.onlyDisplayEditMode || metaInfo.mainMenu;
         }
-        if (isAdmin.value) {
-          return metaInfo.mainMenu === true && metaInfo.onlyDisplayEditMode !== true;
+        if (!isLogged.value || metaInfo.mainMenu !== true || metaInfo.onlyDisplayEditMode === true) {
+          return false;
         }
-        return (
-          metaInfo.mainMenu === true &&
-          isLogged.value &&
-          Number(appState.userInfo?.permission) >= Number(metaInfo.permission)
-        );
+        const perm = Number(appState.userInfo?.permission ?? 0);
+        // End-user panel is only for pure users; staff use ops pages
+        if ((v.path === "/customer" || v.path === "/leaderboard") && perm >= 5) return false;
+        // Super admin can see every staff main menu
+        if (perm >= 10) return true;
+        return perm >= Number(metaInfo.permission ?? 0);
       })
       .map((r) => ({
         name: r.name,

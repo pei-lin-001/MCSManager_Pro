@@ -11,6 +11,7 @@ const STATUS_ERR = 500;
 
 export enum ROLE {
   ADMIN = 10,
+  MANAGER = 5,
   USER = 1,
   GUEST = 0,
   BAN = -1

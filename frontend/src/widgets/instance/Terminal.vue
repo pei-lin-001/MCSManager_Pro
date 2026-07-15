@@ -51,7 +51,7 @@ const props = defineProps<{
 }>();
 
 const { isPhone } = useScreen();
-const { state, isAdmin } = useAppStateStore();
+const { state, isAdmin, isManager } = useAppStateStore();
 const { getMetaOrRouteValue } = useLayoutCardTools(props.card);
 
 // The `useTerminal` is shared by this component and `TerminalCore`.
@@ -241,7 +241,7 @@ const instanceOperations = computed(() =>
       props: {},
       condition: () =>
         isStopped.value &&
-        (state.settings.allowUsePreset || isAdmin.value) &&
+        (state.settings.allowUsePreset || isManager.value) &&
         !isGlobalTerminal.value
     },
     {

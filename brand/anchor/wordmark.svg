@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="88" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#0d5a54"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="url(#bg)"/>
+  <circle cx="48" cy="28" r="7" stroke="#f8fafc" stroke-width="4.5"/>
+  <rect x="26" y="36" width="44" height="7" rx="3.5" fill="#f8fafc"/>
+  <circle cx="26" cy="39.5" r="4.5" fill="#f8fafc"/>
+  <circle cx="70" cy="39.5" r="4.5" fill="#f8fafc"/>
+  <rect x="43.5" y="32" width="9" height="34" rx="1.5" fill="#f8fafc"/>
+  <circle cx="48" cy="68" r="6" fill="#f8fafc"/>
+  <path d="M43 66 C30 72 23 82 20 88 L32 80 C36 74 40 71 43 70 Z" fill="#f8fafc"/>
+  <path d="M53 66 C66 72 73 82 76 88 L64 80 C60 74 56 71 53 70 Z" fill="#f8fafc"/>
+  <path d="M22 80 C36 90 60 90 74 80" stroke="#f8fafc" stroke-width="5.5" stroke-linecap="round" fill="none"/>
+  <text x="112" y="52" fill="#f8fafc" font-family="DejaVu Sans, Arial, sans-serif" font-size="36" font-weight="700" letter-spacing="1.5">ANCHOR</text>
+  <text x="114" y="76" fill="#2dd4bf" font-family="DejaVu Sans, Arial, sans-serif" font-size="14" font-weight="400" letter-spacing="2">SERVER CONSOLE</text>
+</svg>

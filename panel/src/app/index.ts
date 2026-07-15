@@ -24,8 +24,10 @@ import ssoRouter from "./routers/sso_router";
 import userRouter from "./routers/user_overview_router";
 import aiRouter from "./routers/ai_router";
 import playerMonitorRouter from "./routers/player_monitor_router";
+import playerHubRouter from "./routers/player_hub_router";
 import mcPreciseRouter from "./routers/mc_precise_router";
 import frpRouter from "./routers/frp_router";
+import backupRouter from "./routers/backup_router";
 
 export function mountRouters(app: Koa<Koa.DefaultState, Koa.DefaultContext>) {
   const apiRouter = new Router({ prefix: "/api" });
@@ -47,8 +49,10 @@ export function mountRouters(app: Koa<Koa.DefaultState, Koa.DefaultContext>) {
   apiRouter.use(modManagerRouter.routes()).use(modManagerRouter.allowedMethods());
   apiRouter.use(aiRouter.routes()).use(aiRouter.allowedMethods());
   apiRouter.use(playerMonitorRouter.routes()).use(playerMonitorRouter.allowedMethods());
+  apiRouter.use(playerHubRouter.routes()).use(playerHubRouter.allowedMethods());
   apiRouter.use(mcPreciseRouter.routes()).use(mcPreciseRouter.allowedMethods());
   apiRouter.use(frpRouter.routes()).use(frpRouter.allowedMethods());
+  apiRouter.use(backupRouter.routes()).use(backupRouter.allowedMethods());
 
   app.use(apiRouter.routes()).use(apiRouter.allowedMethods());
 }

@@ -33,7 +33,7 @@ router.use(async (ctx, next) => {
 // Enable instance routing
 router.all(
   "/open",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -65,7 +65,7 @@ router.all(
 // The instance closes the route
 router.all(
   "/stop",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -94,7 +94,7 @@ router.all(
 // At this stage, WS cross-panel command transfer has been implemented, and this interface is reserved as an API interface
 router.all(
   "/command",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String, command: String } }),
   async (ctx) => {
     try {
@@ -117,7 +117,7 @@ router.all(
 // restart the instance
 router.all(
   "/restart",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -145,7 +145,7 @@ router.all(
 // terminate the instance
 router.all(
   "/kill",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -173,7 +173,7 @@ router.all(
 // stop an asynchronous task
 router.all(
   "/stop_asynchronous",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String }
   }),
@@ -199,7 +199,7 @@ router.all(
 // query asynchronous task status
 router.all(
   "/query_asynchronous",
-  permission({ level: ROLE.ADMIN, speedLimit: false }),
+  permission({ level: ROLE.MANAGER, speedLimit: false }),
   validator({
     query: { daemonId: String, uuid: String }
   }),
@@ -230,7 +230,7 @@ router.all(
 // Request to establish a data stream dedicated channel with the daemon
 router.post(
   "/stream_channel",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -265,7 +265,7 @@ router.post(
 // Get the instance configuration file list based on the file list
 router.post(
   "/process_config/list",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -291,7 +291,7 @@ router.post(
 // Get the content of the specified configuration file
 router.get(
   "/process_config/file",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String, fileName: String } }),
   async (ctx) => {
     try {
@@ -320,7 +320,7 @@ router.get(
 // Update the content of the specified configuration file
 router.put(
   "/process_config/file",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String, fileName: String } }),
   async (ctx) => {
     try {
@@ -351,7 +351,7 @@ router.put(
 router.put(
   "/instance_update",
   speedLimit(3),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { uuid: String, daemonId: String },
     body: {}
@@ -454,7 +454,7 @@ router.put(
 // Get the terminal log of an instance
 router.get(
   "/outputlog",
-  permission({ level: ROLE.USER, speedLimit: false }),
+  permission({ level: ROLE.MANAGER, speedLimit: false }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     try {
@@ -488,7 +488,7 @@ router.get(
 router.post(
   "/asynchronous",
   speedLimit(3),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String, task_name: String },
     body: {}
@@ -518,7 +518,7 @@ router.post(
 router.post(
   "/install_instance",
   speedLimit(3),
-  permission({ level: ROLE.USER, speedLimit: true }),
+  permission({ level: ROLE.MANAGER, speedLimit: true }),
   validator({
     query: { daemonId: String, uuid: String },
     body: { description: String, title: String }

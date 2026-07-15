@@ -11,7 +11,7 @@ const router = new Router({ prefix: "/service" });
 // [Top-level Permission]
 // Get the list of remote services
 // Contains only service information, not a list of instance information
-router.get("/remote_services_list", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/remote_services_list", permission({ level: ROLE.MANAGER }), async (ctx) => {
   const result = new Array();
   for (const iterator of RemoteServiceSubsystem.services.entries()) {
     const remoteService = iterator[1];
@@ -31,7 +31,7 @@ router.get("/remote_services_list", permission({ level: ROLE.ADMIN }), async (ct
 // Query the daemon for the specified instance
 router.get(
   "/remote_service_instances",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, page: Number, page_size: Number } }),
   async (ctx) => {
     const daemonId = String(ctx.query.daemonId);
@@ -64,7 +64,7 @@ router.get(
 // Query global instances from multiple daemons
 router.get(
   "/remote_services_instances_global",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { page: Number, page_size: Number } }),
   async (ctx) => {
     const page = Math.max(1, Number(ctx.query.page) || 1);
@@ -107,7 +107,7 @@ router.get(
 
 // [Top-level Permission]
 // Get remote server system information
-router.get("/remote_services_system", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/remote_services_system", permission({ level: ROLE.MANAGER }), async (ctx) => {
   const result = new Array();
   for (const iterator of RemoteServiceSubsystem.services.entries()) {
     const remoteService = iterator[1];
@@ -124,7 +124,7 @@ router.get("/remote_services_system", permission({ level: ROLE.ADMIN }), async (
 
 // [Top-level Permission]
 // Get remote server instance information (browse too large)
-router.get("/remote_services", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/remote_services", permission({ level: ROLE.MANAGER }), async (ctx) => {
   const result = new Array();
   for (const iterator of RemoteServiceSubsystem.services.entries()) {
     const remoteService = iterator[1];

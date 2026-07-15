@@ -19,7 +19,7 @@ const router = new Router({ prefix: "/overview" });
 
 // [Top-level Permission]
 // Control panel home page information overview routing
-router.get("/", permission({ level: ROLE.ADMIN, token: false }), async (ctx) => {
+router.get("/", permission({ level: ROLE.MANAGER, token: false }), async (ctx) => {
   // Get the information of the remote service concurrently
   const requestTasks = Array.from(RemoteServiceSubsystem.services.entries()).map(
     async ([_, remoteService]) => {
@@ -86,7 +86,7 @@ router.get("/", permission({ level: ROLE.ADMIN, token: false }), async (ctx) => 
 
 // [Top-level Permission]
 // Get user operation logs
-router.get("/operation_logs", permission({ level: ROLE.ADMIN }), async (ctx) => {
+router.get("/operation_logs", permission({ level: ROLE.MANAGER }), async (ctx) => {
   const limit = +(ctx?.query?.limit || 20);
 
   if (isNaN(limit)) return ctx.throw(400, "Invalid limit value. It must be a number.");

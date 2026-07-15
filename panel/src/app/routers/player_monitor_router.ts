@@ -39,7 +39,7 @@ function assertInstanceAccess(userUuid: string, daemonId: string, instanceUuid: 
 
 router.get(
   "/snapshot",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String } }),
   async (ctx) => {
     const daemonId = String(ctx.query.daemonId || "");
@@ -54,7 +54,7 @@ router.get(
 
 router.get(
   "/profile",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, uuid: String, playerUuid: String } }),
   async (ctx) => {
     const daemonId = String(ctx.query.daemonId || "");
@@ -74,7 +74,7 @@ router.get(
 
 router.post(
   "/action",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String, uuid: String },
     body: { action: String, player: String }

@@ -83,5 +83,6 @@ import "../routers/passport_router";
 import "../routers/schedule_router";
 import "../routers/stream_router";
 import "../routers/frp_router";
+import "../routers/backup_router";
 
 logger.info($t("TXT_CODE_router.initComplete"));

@@ -475,6 +475,18 @@ const dimEntries = computed(() => {
     .map(([k, v]) => ({ dim: k, ms: Number(v) || 0 }))
     .sort((a, b) => b.ms - a.ms);
 });
+
+const killEntries = computed(() => {
+  const m = profile.value?.mobKillsByType || {};
+  return Object.entries(m)
+    .map(([type, count]) => ({
+      type,
+      label: type.includes(":") ? type.split(":").slice(1).join(":") : type,
+      count: Number(count) || 0
+    }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+});
 </script>
 
 <template>
@@ -882,6 +894,20 @@ const dimEntries = computed(() => {
               <div v-for="d in dimEntries" :key="d.dim" class="profile-dim__row">
                 <span>{{ d.dim }}</span>
                 <span>{{ formatDuration(d.ms) }}</span>
+              </div>
+            </div>
+
+            <div class="profile-dim">
+              <div class="profile-dim__title">
+                {{ t("TXT_CODE_PLAYER_MOB_BREAKDOWN") }}
+                <span class="sub"> · M {{ profile.mobKills ?? 0 }}</span>
+              </div>
+              <div v-if="!killEntries.length" class="muted">
+                {{ t("TXT_CODE_PLAYER_MOB_BREAKDOWN_EMPTY") }}
+              </div>
+              <div v-for="k in killEntries" :key="k.type" class="profile-dim__row" :title="k.type">
+                <span>{{ k.label }}</span>
+                <span>{{ k.count }}</span>
               </div>
             </div>
           </template>

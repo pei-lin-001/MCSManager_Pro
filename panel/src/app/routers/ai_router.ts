@@ -186,7 +186,7 @@ function parseChatBody(body: unknown): {
 }
 
 // Public AI status for UI (no secrets)
-router.get("/status", permission({ level: ROLE.USER }), async (ctx) => {
+router.get("/status", permission({ level: ROLE.MANAGER }), async (ctx) => {
   initAiConfig();
   ctx.body = diagnoseReadyState();
 });
@@ -246,7 +246,7 @@ router.put("/config", permission({ level: ROLE.ADMIN }), async (ctx) => {
 router.post(
   "/chat",
   speedLimit(2),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: {
       daemonId: String,
@@ -279,7 +279,7 @@ router.post(
 router.post(
   "/chat/stream",
   speedLimit(2),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: {
       daemonId: String,
@@ -331,7 +331,7 @@ router.post(
 router.post(
   "/execute",
   speedLimit(2),
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: {
       daemonId: String,

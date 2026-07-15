@@ -57,6 +57,8 @@ export interface PlayerProfileDetail {
   deaths?: number;
   playerKills?: number;
   mobKills?: number;
+  /** entity type id -> kill count, e.g. minecraft:zombie */
+  mobKillsByType?: Record<string, number>;
   damageDealt?: number;
   damageTaken?: number;
   blocksBroken?: number;

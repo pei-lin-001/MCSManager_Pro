@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="20" y1="8" x2="108" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111c30"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#bg)"/>
+  <rect x="6.5" y="6.5" width="115" height="115" rx="27.5" stroke="#2dd4bf" stroke-opacity="0.18"/>
+  <!-- ring -->
+  <circle cx="64" cy="34" r="10" stroke="#2dd4bf" stroke-width="6"/>
+  <!-- stock -->
+  <rect x="34" y="46" width="60" height="10" rx="5" fill="#2dd4bf"/>
+  <circle cx="34" cy="51" r="6" fill="#2dd4bf"/>
+  <circle cx="94" cy="51" r="6" fill="#2dd4bf"/>
+  <!-- shank -->
+  <rect x="58" y="42" width="12" height="46" rx="2" fill="#2dd4bf"/>
+  <!-- crown -->
+  <circle cx="64" cy="90" r="8" fill="#2dd4bf"/>
+  <!-- flukes -->
+  <path d="M58 88 C40 96 30 110 26 118 L42 108 C48 100 54 96 58 94 Z" fill="#2dd4bf"/>
+  <path d="M70 88 C88 96 98 110 102 118 L86 108 C80 100 74 96 70 94 Z" fill="#2dd4bf"/>
+  <path d="M30 108 C48 122 80 122 98 108" stroke="#2dd4bf" stroke-width="8" stroke-linecap="round" fill="none"/>
+</svg>

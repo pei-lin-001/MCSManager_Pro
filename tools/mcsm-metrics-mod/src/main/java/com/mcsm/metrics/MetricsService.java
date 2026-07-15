@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
@@ -383,13 +385,7 @@ public class MetricsService {
         DamageSource src = event.getSource();
         Entity killer = src.getEntity();
         if (killer instanceof ServerPlayer attacker) {
-            PlayerProfile ap = profiles.get(attacker.getUUID());
-            if (ap != null) {
-                if (dead instanceof Player) ap.playerKills += 1;
-                else ap.mobKills += 1;
-                ap.lastActivityMs = now;
-                ap.dirtyAt = now;
-            }
+            creditKill(attacker, dead);
         }
     }
 
@@ -506,6 +502,31 @@ public class MetricsService {
 
     // -------------------- persistence --------------------
 
+
+    private void creditKill(ServerPlayer attacker, Entity killed) {
+        PlayerProfile ap = profiles.get(attacker.getUUID());
+        if (ap == null) return;
+        if (killed instanceof Player) {
+            ap.playerKills += 1;
+        } else {
+            ap.mobKills += 1;
+            if (ap.mobKillsByType == null) ap.mobKillsByType = new HashMap<>();
+            ap.mobKillsByType.merge(entityTypeId(killed), 1L, Long::sum);
+        }
+        long now = System.currentTimeMillis();
+        ap.lastActivityMs = now;
+        ap.dirtyAt = now;
+    }
+
+    private static String entityTypeId(Entity entity) {
+        try {
+            ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+            if (id != null) return id.toString();
+        } catch (Exception ignored) {
+        }
+        return "unknown";
+    }
+
     private Path profilePath(UUID id) {
         return playersDir.resolve(id.toString() + ".json");
     }
@@ -517,6 +538,7 @@ public class MetricsService {
                 PlayerProfile p = gson.fromJson(r, PlayerProfile.class);
                 if (p != null) {
                     if (p.dimensionTimeMs == null) p.dimensionTimeMs = new HashMap<>();
+                    if (p.mobKillsByType == null) p.mobKillsByType = new HashMap<>();
                     if (p.uuid == null) p.uuid = id.toString();
                     if (p.name == null) p.name = name;
                     return p;
@@ -536,6 +558,7 @@ public class MetricsService {
                     PlayerProfile p = gson.fromJson(r, PlayerProfile.class);
                     if (p == null || p.uuid == null) continue;
                     if (p.dimensionTimeMs == null) p.dimensionTimeMs = new HashMap<>();
+                    if (p.mobKillsByType == null) p.mobKillsByType = new HashMap<>();
                     p.online = false;
                     profiles.put(UUID.fromString(p.uuid), p);
                 } catch (Exception ignored) {
@@ -584,6 +607,7 @@ public class MetricsService {
         m.put("deaths", p.deaths);
         m.put("playerKills", p.playerKills);
         m.put("mobKills", p.mobKills);
+        m.put("mobKillsByType", p.mobKillsByType != null ? p.mobKillsByType : Map.of());
         m.put("damageDealt", p.damageDealt);
         m.put("damageTaken", p.damageTaken);
         m.put("blocksBroken", p.blocksBroken);
@@ -628,7 +652,7 @@ public class MetricsService {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("schema", 2);
         root.put("mod", "mcsm_metrics");
-        root.put("modVersion", "0.2.0");
+        root.put("modVersion", "0.2.2");
         root.put("ts", now);
         root.put("stopping", stopping);
 

@@ -51,6 +51,11 @@ class UserSubsystem {
     if (config.open2FA != null) instance.open2FA = Boolean(config.open2FA);
     if (config.ssoSub != null) instance.ssoSub = String(config.ssoSub);
     if (config.ssoBound != null) instance.ssoBound = Boolean(config.ssoBound);
+    if (config.mcName != null) instance.mcName = String(config.mcName || "");
+    if (config.mcUuid != null) instance.mcUuid = String(config.mcUuid || "");
+    if (config.bindAt != null) instance.bindAt = Number(config.bindAt) || 0;
+    if (config.activityPoints != null) instance.activityPoints = Number(config.activityPoints) || 0;
+    if (config.checkIn != null) instance.checkIn = config.checkIn || {};
     if (config.instances) this.setUserInstances(uuid, config.instances);
     if (config.passWord) {
       instance.passWordType = UserPassWordType.bcrypt;

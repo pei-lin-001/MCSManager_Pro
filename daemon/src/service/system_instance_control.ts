@@ -13,7 +13,8 @@ export enum ScheduleActionTypeEnum {
   Stop = "stop",
   Start = "start",
   Restart = "restart",
-  Kill = "kill"
+  Kill = "kill",
+  Backup = "backup"
 }
 
 export const ScheduleTypeEnum = {
@@ -240,6 +241,24 @@ class InstanceControlSubsystem {
           if (instanceStatus === Instance.STATUS_RUNNING) {
             await instance.execPreset("command", payload);
           }
+          continue;
+        }
+        if (actionType === ScheduleActionTypeEnum.Backup) {
+          const backupService = (await import("./backup_service")).default;
+          let scope: any = "core";
+          let note = "";
+          try {
+            const payload = action.payload ? JSON.parse(action.payload) : {};
+            if (payload?.scope) scope = payload.scope;
+            if (payload?.note) note = String(payload.note);
+          } catch {
+            if (action.payload) scope = action.payload;
+          }
+          await backupService.create(task.instanceUuid, {
+            scope,
+            note: note || `schedule:${task.name}`,
+            trigger: "schedule"
+          });
           continue;
         }
         if (actionType === ScheduleActionTypeEnum.Kill) {

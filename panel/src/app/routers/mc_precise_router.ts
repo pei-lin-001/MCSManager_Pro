@@ -283,13 +283,13 @@ async function trialStart(
   };
 }
 
-router.get("/loaders", permission({ level: ROLE.USER }), async (ctx) => {
+router.get("/loaders", permission({ level: ROLE.MANAGER }), async (ctx) => {
   ctx.body = listLoaders();
 });
 
 router.get(
   "/versions",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { loader: String } }),
   async (ctx) => {
     const loader = String(ctx.query.loader || "").toLowerCase();
@@ -300,7 +300,7 @@ router.get(
 
 router.get(
   "/builds",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { loader: String, mcVersion: String } }),
   async (ctx) => {
     const loader = String(ctx.query.loader || "").toLowerCase();
@@ -312,7 +312,7 @@ router.get(
 
 router.post(
   "/plan",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     body: {
       loader: String,
@@ -622,7 +622,7 @@ async function runPreciseInstall(
  */
 router.post(
   "/install",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String },
     body: {
@@ -670,7 +670,7 @@ router.post(
  */
 router.post(
   "/install/stream",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: { daemonId: String },
     body: {

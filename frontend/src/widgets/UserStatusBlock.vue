@@ -54,13 +54,19 @@ const computedStatusList = computed(() => {
 });
 
 const realStatus = computed(() => computedStatusList.value.find((v) => v.type === type));
+const tone = computed(() => {
+  if (type === "instance_running") return "running";
+  if (type === "instance_stop") return "stop";
+  if (type === "instance_error") return "error";
+  return "all";
+});
 onMounted(() => {
   getInstanceList();
 });
 </script>
 
 <template>
-  <CardPanel class="StatusBlock" style="height: 100%">
+  <CardPanel class="StatusBlock" :class="tone" style="height: 100%">
     <template #title>{{ card.title }}</template>
     <template #body>
       <a-typography-text class="color-info">
@@ -78,5 +84,9 @@ onMounted(() => {
     font-size: var(--font-h1);
     margin-top: 4px;
   }
+  &.running .value { color: #3f8600; }
+  &.stop .value { color: #8c8c8c; }
+  &.error .value { color: #cf1322; }
+  &.all .value { color: #1677ff; }
 }
 </style>

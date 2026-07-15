@@ -15,6 +15,7 @@ import InstanceServerConfigFile from "@/widgets/instance/ServerConfigFile.vue";
 import InstanceServerConfigOverview from "@/widgets/instance/ServerConfigOverview.vue";
 import InstanceShortcut from "@/widgets/instance/Shortcut.vue";
 import InstancePerformance from "@/widgets/instance/Performance.vue";
+import InstanceBackupManager from "@/widgets/instance/BackupManager.vue";
 import Terminal from "@/widgets/instance/Terminal.vue";
 import InstanceChart from "@/widgets/InstanceChart.vue";
 import InstanceList from "@/widgets/InstanceList.vue";
@@ -46,6 +47,9 @@ import StatusBlock from "@/widgets/StatusBlock.vue";
 import TitleCard from "@/widgets/TitleCard.vue";
 import UserAccessSettings from "@/widgets/user/AccessSettings.vue";
 import UserInstanceList from "@/widgets/UserInstanceList.vue";
+import UserWelcome from "@/widgets/UserWelcome.vue";
+import UserPlayerHub from "@/widgets/UserPlayerHub.vue";
+import UserLeaderboard from "@/widgets/UserLeaderboard.vue";
 import UserList from "@/widgets/UserList.vue";
 import UserStatusBlock from "@/widgets/UserStatusBlock.vue";
 
@@ -74,6 +78,7 @@ export const LAYOUT_CARD_TYPES: { [key: string]: any } = {
   InstanceManagerBtns,
   InstanceBaseInfo,
   InstancePerformance,
+  InstanceBackupManager,
   InstanceServerConfigOverview,
   InstanceServerConfigFile,
   InstanceFileManager,
@@ -89,6 +94,9 @@ export const LAYOUT_CARD_TYPES: { [key: string]: any } = {
   ClockCard,
   UserStatusBlock,
   UserInstanceList,
+  UserWelcome,
+  UserPlayerHub,
+  UserLeaderboard,
   ImageManager,
   NewImage,
   Schedule,
@@ -113,7 +121,7 @@ export function getLayoutCardPool() {
   const LAYOUT_CARD_POOL: NewCardItem[] = [
     {
       id: getRandomId(),
-      permission: ROLE.GUEST,
+      permission: ROLE.USER,
       meta: {},
       type: "EmptyCard",
       title: t("TXT_CODE_b23e2bab"),
@@ -136,7 +144,7 @@ export function getLayoutCardPool() {
 
     {
       id: getRandomId(),
-      permission: ROLE.USER,
+      permission: ROLE.MANAGER,
       type: "Terminal",
       title: t("TXT_CODE_71a51d19"),
       width: 6,
@@ -314,7 +322,7 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.USER,
+      permission: ROLE.MANAGER,
       meta: {},
       type: "InstanceShortcut",
       title: t("TXT_CODE_ea0840c9"),
@@ -343,6 +351,39 @@ export function getLayoutCardPool() {
     {
       id: getRandomId(),
       permission: ROLE.USER,
+      type: "UserWelcome",
+      title: t("TXT_CODE_USER_WELCOME_TITLE"),
+      meta: {},
+      width: 12,
+      description: t("TXT_CODE_USER_WELCOME_DESC"),
+      height: LayoutCardHeight.SMALL,
+      category: NEW_CARD_TYPE.INSTANCE
+    },
+    {
+      id: getRandomId(),
+      permission: ROLE.USER,
+      type: "UserPlayerHub",
+      title: t("TXT_CODE_PLAYER_HUB_TITLE"),
+      meta: {},
+      width: 12,
+      description: t("TXT_CODE_PLAYER_HUB_DESC"),
+      height: LayoutCardHeight.AUTO,
+      category: NEW_CARD_TYPE.INSTANCE
+    },
+    {
+      id: getRandomId(),
+      permission: ROLE.USER,
+      type: "UserLeaderboard",
+      title: t("TXT_CODE_PLAYER_LB_TITLE"),
+      meta: {},
+      width: 12,
+      description: t("TXT_CODE_PLAYER_LB_DESC"),
+      height: LayoutCardHeight.AUTO,
+      category: NEW_CARD_TYPE.INSTANCE
+    },
+    {
+      id: getRandomId(),
+      permission: ROLE.MANAGER,
       meta: {},
       type: "InstanceFileManager",
       title: t("TXT_CODE_72cce10b"),
@@ -370,7 +411,7 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.USER,
+      permission: ROLE.MANAGER,
       meta: {},
       type: "InstanceBaseInfo",
       title: t("TXT_CODE_eadb4f60"),
@@ -398,7 +439,7 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.USER,
+      permission: ROLE.MANAGER,
       meta: {},
       type: "InstancePerformance",
       title: t("TXT_CODE_INST_PERF_TITLE"),
@@ -437,7 +478,7 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.ADMIN,
+      permission: ROLE.MANAGER,
       type: "InstanceChart",
       title: t("TXT_CODE_d6d9c42c"),
       meta: {},
@@ -503,6 +544,22 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
+      permission: ROLE.MANAGER,
+      type: "InstanceBackupManager",
+      title: t("TXT_CODE_BACKUP_TITLE"),
+      meta: {},
+      width: 12,
+      description: t("TXT_CODE_BACKUP_DESC"),
+      height: LayoutCardHeight.MEDIUM,
+      category: NEW_CARD_TYPE.INSTANCE,
+      params: [
+        { field: "instanceId", label: "Instance ID", type: "string" },
+        { field: "daemonId", label: "Daemon ID", type: "string" },
+        { field: "viewType", label: "view", type: "instance" }
+      ]
+    },
+    {
+      id: getRandomId(),
       permission: ROLE.ADMIN,
       meta: {},
       type: "NodeItem",
@@ -526,7 +583,7 @@ export function getLayoutCardPool() {
     },
     {
       id: getRandomId(),
-      permission: ROLE.USER,
+      permission: ROLE.MANAGER,
       meta: {},
       type: "InstanceManagerBtns",
       title: t("TXT_CODE_d2bbb2f1"),

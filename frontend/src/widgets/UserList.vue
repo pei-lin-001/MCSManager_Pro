@@ -72,8 +72,8 @@ const columns = computed(() => {
       dataIndex: "permission",
       key: "permission",
       minWidth: 200,
-      customRender: (e: { text: "1" | "10" | "-1" }) => {
-        return PERMISSION_MAP[e.text] || e.text;
+      customRender: (e: { text: string | number }) => {
+        return PERMISSION_MAP[String(e.text)] || String(e.text);
       }
     },
     {
@@ -348,7 +348,7 @@ onMounted(async () => {
       <a-form-item required name="permission" :label="t('TXT_CODE_511aea70')">
         <a-typography-paragraph>
           <a-typography-text type="secondary">
-            {{ t("TXT_CODE_21b8b71a") }}
+            {{ t("TXT_CODE_ROLE_HINT") }}
           </a-typography-text>
         </a-typography-paragraph>
         <a-select v-model:value="formData.permission">

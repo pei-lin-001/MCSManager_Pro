@@ -8,9 +8,17 @@ import { useAppToolsStore } from "@/stores/useAppToolsStore";
 import { reportErrorMsg } from "@/tools/validator";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
+import { ROLE } from "@/config/router";
 import { bind2FA } from "../services/apis/user";
 const { state, updateUserInfo } = useAppStateStore();
+const roleColor = computed(() => {
+  const p = Number(state.userInfo?.permission ?? 0);
+  if (p >= ROLE.ADMIN) return "red";
+  if (p >= ROLE.MANAGER) return "orange";
+  return "blue";
+});
+
 const { state: tools } = useAppToolsStore();
 
 const { execute, isLoading: setUserApiKeyLoading } = setUserApiKey();
@@ -118,7 +126,7 @@ const disable2FACode = async () => {
           </a-col>
           <a-col>
             <a-form-item :label="t('TXT_CODE_63ccbf90')">
-              <a-tag>{{ PERMISSION_MAP[String(state.userInfo?.permission)] }}</a-tag>
+              <a-tag :color="roleColor">{{ PERMISSION_MAP[String(state.userInfo?.permission)] }}</a-tag>
             </a-form-item>
           </a-col>
         </a-row>

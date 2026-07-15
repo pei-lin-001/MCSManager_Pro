@@ -25,7 +25,7 @@ router.use(async (ctx, next) => {
 
 router.get(
   "/list",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({ query: { daemonId: String, instanceId: String } }),
   async (ctx) => {
     const daemonId = String(ctx.query.daemonId);
@@ -38,7 +38,7 @@ router.get(
 router.post(
   "/add",
   speedLimit(3),
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: {
       daemonId: String
@@ -62,7 +62,7 @@ router.post(
 router.post(
   "/download",
   speedLimit(3),
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: {
       daemonId: String,
@@ -86,7 +86,7 @@ router.post(
 
 router.post(
   "/using",
-  permission({ level: ROLE.USER }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: {
       daemonId: String,
@@ -110,7 +110,7 @@ router.post(
 
 router.delete(
   "/delete",
-  permission({ level: ROLE.ADMIN }),
+  permission({ level: ROLE.MANAGER }),
   validator({
     query: {
       daemonId: String

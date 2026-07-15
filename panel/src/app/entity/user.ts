@@ -27,10 +27,19 @@ export class User implements IUser {
   open2FA = false;
   ssoSub = "";
   ssoBound = false;
+  mcName = "";
+  mcUuid = "";
+  bindAt = 0;
+  activityPoints = 0;
+  checkIn: { lastDate?: string; streak?: number } = {};
 }
 
 export enum ROLE {
+  /** Super admin: full panel control */
   ADMIN = 10,
+  /** Manager/operator: instance ops, no system settings */
+  MANAGER = 5,
+  /** End user: character hub only, no instance operations */
   USER = 1,
   GUEST = 0,
   BAN = -1

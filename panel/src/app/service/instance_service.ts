@@ -144,6 +144,11 @@ export async function getInstancesByUuid(
     isInit: user.isInit,
     open2FA: user.open2FA,
     secret: user.secret,
+    mcName: user.mcName || "",
+    mcUuid: user.mcUuid || "",
+    bindAt: user.bindAt || 0,
+    activityPoints: user.activityPoints || 0,
+    checkIn: user.checkIn || {},
     token: ""
   };
 }

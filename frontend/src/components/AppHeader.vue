@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import logo from "@/assets/logo.png";
 import { useHeaderMenus } from "@/hooks/useHeaderMenus";
 import { useScreen } from "@/hooks/useScreen";
-import { useAppConfigStore } from "@/stores/useAppConfigStore";
+import BrandMark from "@/components/BrandMark.vue";
 import { useLayoutContainerStore } from "@/stores/useLayoutContainerStore";
 import { MenuUnfoldOutlined } from "@ant-design/icons-vue";
 import { useScroll } from "@vueuse/core";
@@ -12,8 +11,6 @@ import CardPanel from "./CardPanel.vue";
 
 const route = useRoute();
 const { containerState } = useLayoutContainerStore();
-const { logoImage } = useAppConfigStore();
-
 const { menus, appMenus, handleToPage } = useHeaderMenus();
 
 /** Whether route menu item is active (current path equals or is child of this path) */
@@ -46,10 +43,8 @@ const openPhoneMenu = (b = false) => {
   <header class="app-header-wrapper" :style="headerStyle">
     <div v-if="!isPhone" class="app-header-content">
       <nav class="btns">
-        <a href="." style="margin-right: 12px">
-          <div class="logo">
-            <img :src="logoImage" style="height: 18px" />
-          </div>
+        <a href="." style="margin-right: 12px" class="logo-link">
+          <BrandMark />
         </a>
 
         <div
@@ -131,8 +126,8 @@ const openPhoneMenu = (b = false) => {
               </a-dropdown>
             </div>
           </div>
-          <div>
-            <img :src="logo" style="height: 18px" />
+          <div class="logo-link">
+            <BrandMark />
           </div>
           <div style="width: 100px" class="justify-end">
             <div v-for="(item, index) in appMenus" :key="index">
@@ -299,8 +294,10 @@ const openPhoneMenu = (b = false) => {
     background-color: rgba(215, 215, 215, 0.35);
   }
 
-  .logo {
+  .logo-link {
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
   }
 
   .pro-mode-order-container {

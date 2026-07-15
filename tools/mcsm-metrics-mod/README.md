@@ -9,7 +9,7 @@ See `dist/`:
 | Pack | Loader | MC | Jar |
 |------|--------|----|-----|
 | forge-1.20.1 | Forge | 1.20.1 | `dist/forge-1.20.1/mcsm_metrics-forge-1.20.1-0.2.0.jar` |
-| fabric-1.20.1 | Fabric | 1.20.1 | `dist/fabric-1.20.1/mcsm_metrics-fabric-1.20.1-0.2.0.jar` |
+| fabric-1.20.1 | Fabric | 1.20.1 | `dist/fabric-1.20.1/mcsm_metrics-fabric-1.20.1-0.2.2.jar` |
 | fabric-1.20.4 | Fabric | 1.20.4 | `dist/fabric-1.20.4/mcsm_metrics-fabric-1.20.4-0.2.1.jar` |
 | fabric-1.21.1 | Fabric | 1.21.1 | `dist/fabric-1.21.1/mcsm_metrics-fabric-1.21.1-0.2.1.jar` |
 
@@ -27,6 +27,7 @@ Fields used by panel:
 - performance.tps / mspt
 - playersOnline (+ ping/afk/session stats)
 - rankings
+- profile.mobKillsByType (entity id -> count, schema via metrics 0.2.2+)
 
 ## Build
 

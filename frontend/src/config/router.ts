@@ -54,9 +54,20 @@ export enum ROLE {
   // eslint-disable-next-line no-unused-vars
   ADMIN = 10,
   // eslint-disable-next-line no-unused-vars
+  MANAGER = 5,
+  // eslint-disable-next-line no-unused-vars
   USER = 1,
   // eslint-disable-next-line no-unused-vars
   GUEST = 0
+}
+
+/** Home path after login by permission level */
+export function homePathByPermission(permission?: number | null): string {
+  const p = Number(permission ?? 0);
+  if (p >= ROLE.ADMIN) return "/overview";
+  if (p >= ROLE.MANAGER) return "/instances";
+  if (p >= ROLE.USER) return "/customer";
+  return "/login";
 }
 
 const originRouterConfig: RouterConfig[] = [
@@ -74,7 +85,7 @@ const originRouterConfig: RouterConfig[] = [
     name: t("TXT_CODE_2799a1dd"),
     component: LayoutContainer,
     meta: {
-      permission: ROLE.ADMIN,
+      permission: ROLE.MANAGER,
       mainMenu: false
     },
     children: [
@@ -83,7 +94,7 @@ const originRouterConfig: RouterConfig[] = [
         name: t("TXT_CODE_88249aee"),
         component: LayoutContainer,
         meta: {
-          permission: ROLE.ADMIN
+          permission: ROLE.MANAGER
         }
       }
     ]
@@ -94,15 +105,7 @@ const originRouterConfig: RouterConfig[] = [
     component: LayoutContainer,
     meta: {
       mainMenu: true,
-      redirect: (user) => {
-        if (user?.permission === ROLE.ADMIN) {
-          return "/instances";
-        }
-        if (user?.permission && user.permission >= ROLE.USER) {
-          return "/customer";
-        }
-        return "/login";
-      },
+      redirect: (user) => homePathByPermission(user?.permission),
       permission: ROLE.USER
     }
   },
@@ -112,7 +115,7 @@ const originRouterConfig: RouterConfig[] = [
     component: LayoutContainer,
     meta: {
       mainMenu: true,
-      permission: ROLE.ADMIN
+      permission: ROLE.MANAGER
     },
     children: [
       {
@@ -120,7 +123,7 @@ const originRouterConfig: RouterConfig[] = [
         name: t("TXT_CODE_524e3036"),
         component: LayoutContainer,
         meta: {
-          permission: ROLE.USER
+          permission: ROLE.MANAGER
         },
         children: [
           {
@@ -128,7 +131,7 @@ const originRouterConfig: RouterConfig[] = [
             name: t("TXT_CODE_ae533703"),
             component: LayoutContainer,
             meta: {
-              permission: ROLE.USER
+              permission: ROLE.MANAGER
             }
           },
           {
@@ -136,7 +139,7 @@ const originRouterConfig: RouterConfig[] = [
             name: t("TXT_CODE_MOD_MANAGER"),
             component: LayoutContainer,
             meta: {
-              permission: ROLE.USER
+              permission: ROLE.MANAGER
             }
           },
           {
@@ -144,7 +147,7 @@ const originRouterConfig: RouterConfig[] = [
             name: t("TXT_CODE_PLAYER_MONITOR_TITLE"),
             component: LayoutContainer,
             meta: {
-              permission: ROLE.USER
+              permission: ROLE.MANAGER
             }
           },
           {
@@ -152,7 +155,7 @@ const originRouterConfig: RouterConfig[] = [
             name: t("TXT_CODE_d07742fe"),
             component: LayoutContainer,
             meta: {
-              permission: ROLE.USER
+              permission: ROLE.MANAGER
             },
             children: [
               {
@@ -160,7 +163,7 @@ const originRouterConfig: RouterConfig[] = [
                 name: t("TXT_CODE_78019c60"),
                 component: LayoutContainer,
                 meta: {
-                  permission: ROLE.USER
+                  permission: ROLE.MANAGER
                 }
               }
             ]
@@ -170,7 +173,7 @@ const originRouterConfig: RouterConfig[] = [
             name: t("TXT_CODE_b7d026f8"),
             component: LayoutContainer,
             meta: {
-              permission: ROLE.USER
+              permission: ROLE.MANAGER
             }
           }
         ]
@@ -183,7 +186,7 @@ const originRouterConfig: RouterConfig[] = [
     component: LayoutContainer,
     meta: {
       mainMenu: true,
-      permission: ROLE.ADMIN
+      permission: ROLE.MANAGER
     },
     children: [
       {
@@ -202,7 +205,7 @@ const originRouterConfig: RouterConfig[] = [
     component: LayoutContainer,
     meta: {
       mainMenu: true,
-      permission: ROLE.ADMIN
+      permission: ROLE.MANAGER
     }
   },
   {
@@ -286,12 +289,22 @@ const originRouterConfig: RouterConfig[] = [
   },
   {
     path: "/customer",
-    name: t("TXT_CODE_ec299306"),
+    name: t("TXT_CODE_PLAYER_CENTER_NAV"),
     component: LayoutContainer,
     meta: {
       permission: ROLE.USER,
       mainMenu: true,
-      onlyDisplayEditMode: true
+      onlyDisplayEditMode: false
+    }
+  },
+  {
+    path: "/leaderboard",
+    name: t("TXT_CODE_PLAYER_LB_NAV"),
+    component: LayoutContainer,
+    meta: {
+      permission: ROLE.USER,
+      mainMenu: true,
+      onlyDisplayEditMode: false
     }
   },
   {
@@ -398,18 +411,15 @@ router.beforeEach(async (to, from, next) => {
   if (toRoutePath === "/sso/callback") {
     try {
       await updateUserInfo();
-      return next(isAdmin.value ? "/" : "/customer");
+      return next(homePathByPermission(state.userInfo?.permission));
     } catch {
       return next("/login");
     }
   }
 
   if (toRoutePath === "/login" && state.userInfo?.token) {
-    if (isAdmin.value) {
-      if (containerState.isDesignMode) return next();
-      else return next("/");
-    }
-    return next("/customer");
+    if (containerState.isDesignMode && isAdmin.value) return next();
+    return next(homePathByPermission(state.userInfo?.permission));
   }
 
   if (
@@ -428,8 +438,8 @@ router.beforeEach(async (to, from, next) => {
 
   if (!state.userInfo?.token) return next("/login");
 
-  if (toPagePermission > userPermission && userPermission !== ROLE.ADMIN) {
-    return next("/customer");
+  if (toPagePermission > userPermission && userPermission < ROLE.ADMIN) {
+    return next(homePathByPermission(userPermission));
   }
 
   if (toPagePermission <= userPermission) {
